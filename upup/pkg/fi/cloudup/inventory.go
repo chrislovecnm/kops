@@ -40,8 +40,9 @@ import (
 )
 
 const (
-	AssetContainer = "Container"
-	AssetBinary    = "File"
+	AssetContainer       = "Container"
+	AssetBinary          = "File"
+	AssetContainerBinary = "ContainerFile"
 )
 
 type InventoryAsset struct {
@@ -136,7 +137,7 @@ func (i *Inventory) buildInventoryAssets(cluster *api.Cluster, nodeupConfigs []*
 		// protokube
 		inventoryMap[n.ProtokubeImage.Source] = &InventoryAsset{
 			Data: n.ProtokubeImage.Source,
-			Type: AssetContainer,
+			Type: AssetContainerBinary,
 		}
 
 		glog.V(8).Infof("%s\n", n.ProtokubeImage.Source)

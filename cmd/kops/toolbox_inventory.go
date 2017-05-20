@@ -113,67 +113,9 @@ func NewCmdToolboxInventory(f *util.Factory, out io.Writer) *cobra.Command {
 // RunToolboxInventory executes the business logic to generate a BOM for a kops intallation.
 func RunToolboxInventory(f *util.Factory, out io.Writer, options *ToolboxInventoryOptions) error {
 
-	var cluster *api.Cluster
-	var ig []*api.InstanceGroup
-	var err error
-	var clientset simple.Clientset
-
-	clientset, err = options.getClientSet(f)
+	a, cluster, err := extractAssets(f, options)
 	if err != nil {
-		return err
-	}
-
-	if len(options.Filenames) != 0 {
-		cluster, ig, err = options.readFiles(options)
-		if err != nil {
-			return fmt.Errorf("Error loading file(s) %q, %v", options.Filenames, err)
-		}
-	} else if options.ClusterName != "" {
-
-		cluster, err = clientset.Clusters().Get(options.ClusterName)
-
-		if err != nil {
-			return fmt.Errorf("Error getting cluster  %q", err)
-		}
-
-		if cluster == nil {
-			return fmt.Errorf("cluster not found %q", options.ClusterName)
-		}
-
-		configBase, err := registry.ConfigBase(cluster)
-		if err != nil {
-			return fmt.Errorf("error reading full cluster spec for %q: %v", cluster.ObjectMeta.Name, err)
-		}
-
-		err = registry.ReadConfigDeprecated(configBase.Join(registry.PathClusterCompleted), cluster)
-		if err != nil {
-			return fmt.Errorf("error reading full cluster spec for %q: %v", cluster.ObjectMeta.Name, err)
-		}
-
-	}
-
-	if cluster.Spec.KubernetesVersion == "" {
-		channel, err := api.LoadChannel(options.Channel)
-		if err != nil {
-			return fmt.Errorf("Unable to load channel %q", err)
-		}
-		kubernetesVersion := api.RecommendedKubernetesVersion(channel, kops.Version)
-		if kubernetesVersion != nil {
-			cluster.Spec.KubernetesVersion = kubernetesVersion.String()
-			options.KubernetesVersion = cluster.Spec.KubernetesVersion
-		} else {
-
-			return fmt.Errorf("Unable to find kubernetes version")
-		}
-
-	}
-
-	inventory := &cloudup.Inventory{}
-
-	a, err := inventory.Build(cluster, ig, clientset)
-
-	if err != nil {
-		return fmt.Errorf("error building inventory assests: %v", err)
+		return fmt.Errorf("Error extracting assesets file(s) %q, %v", options.Filenames, err)
 	}
 
 	switch getCmd.output {
@@ -196,7 +138,7 @@ func RunToolboxInventory(f *util.Factory, out io.Writer, options *ToolboxInvento
 }
 
 // readFiles inputs and marshalls YAML files.
-func (o *ToolboxInventoryOptions) readFiles(options *ToolboxInventoryOptions) (*api.Cluster, []*api.InstanceGroup, error) {
+func readFiles(options *ToolboxInventoryOptions) (*api.Cluster, []*api.InstanceGroup, error) {
 
 	codec := api.Codecs.UniversalDecoder(api.SchemeGroupVersion)
 
@@ -242,11 +184,78 @@ func (o *ToolboxInventoryOptions) readFiles(options *ToolboxInventoryOptions) (*
 }
 
 // getClientSet returns a clientset.
-func (o *ToolboxInventoryOptions) getClientSet(f *util.Factory) (simple.Clientset, error) {
+func getClientSet(f *util.Factory) (simple.Clientset, error) {
 	clientset, err := f.Clientset()
 	if err != nil {
 		return nil, fmt.Errorf("unable to load client set %v", err)
 	}
 
 	return clientset, nil
+}
+
+func extractAssets(f *util.Factory, options *ToolboxInventoryOptions) ([]*cloudup.InventoryAsset, *api.Cluster, error) {
+	var cluster *api.Cluster
+	var ig []*api.InstanceGroup
+	var err error
+	var clientset simple.Clientset
+
+	clientset, err = getClientSet(f)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(options.Filenames) != 0 {
+		cluster, ig, err = readFiles(options)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Error loading file(s) %q, %v", options.Filenames, err)
+		}
+	} else if options.ClusterName != "" {
+
+		cluster, err = clientset.Clusters().Get(options.ClusterName)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("Error getting cluster  %q", err)
+		}
+
+		if cluster == nil {
+			return nil, nil, fmt.Errorf("cluster not found %q", options.ClusterName)
+		}
+
+		configBase, err := registry.ConfigBase(cluster)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error reading full cluster spec for %q: %v", cluster.ObjectMeta.Name, err)
+		}
+
+		err = registry.ReadConfigDeprecated(configBase.Join(registry.PathClusterCompleted), cluster)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error reading full cluster spec for %q: %v", cluster.ObjectMeta.Name, err)
+		}
+
+	}
+
+	if cluster.Spec.KubernetesVersion == "" {
+		channel, err := api.LoadChannel(options.Channel)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Unable to load channel %q", err)
+		}
+		kubernetesVersion := api.RecommendedKubernetesVersion(channel, kops.Version)
+		if kubernetesVersion != nil {
+			cluster.Spec.KubernetesVersion = kubernetesVersion.String()
+			options.KubernetesVersion = cluster.Spec.KubernetesVersion
+		} else {
+
+			return nil, nil, fmt.Errorf("Unable to find kubernetes version")
+		}
+
+	}
+
+	inventory := &cloudup.Inventory{}
+
+	a, err := inventory.Build(cluster, ig, clientset)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("error building inventory assests: %v", err)
+	}
+
+	return a, cluster, nil
 }
