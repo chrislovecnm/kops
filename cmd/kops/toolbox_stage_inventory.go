@@ -30,6 +30,7 @@ import (
 )
 
 type ToolboxStageInventoryOptions struct {
+	// Maybe we may this a sub command then?
 	*ToolboxInventoryOptions
 	Repository      string
 	FileDestination string

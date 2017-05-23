@@ -47,12 +47,12 @@ func TestAllContainers(t *testing.T) {
 		options.ClusterName = "privateweave.example.com"
 		options.Filenames = []string{path.Join(srcDir, inputYAML)}
 
-		c, ig, err := options.readFiles(options)
+		c, ig, err := readFiles(options)
 		if err != nil {
 			t.Fatalf("error running %s/%s files: %v", srcDir, inputYAML, err)
 		}
 
-		cs, err := options.getClientSet(factory)
+		cs, err := getClientSet(factory)
 		if err != nil {
 			t.Fatalf("unable to get client set %v", err)
 		}

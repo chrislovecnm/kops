@@ -82,9 +82,15 @@ func (i *Inventory) Build(cluster *api.Cluster, ig []*api.InstanceGroup, clients
 // buildInventoryAssets builds a map of all unique inventory assets.
 func (i *Inventory) buildInventoryAssets(applyClusterCmd *ApplyClusterCmd, nodeupConfigs []*nodeup.NodeUpConfig) ([]*InventoryAsset, error) {
 
-	inventoryMap := make(map[string]*InventoryAsset)
-
 	spec := applyClusterCmd.Cluster.Spec
+	channel, err := api.ParseChannelLocation(spec.Channel)
+
+	if err != nil {
+		return nil, fmt.Errorf("error getting channel location: %v", err)
+	}
+
+	// CJL new code
+	inventoryMap := make(map[string]*InventoryAsset)
 
 	inventoryMap[applyClusterCmd.NodeUpSource] = &InventoryAsset{
 		Data: applyClusterCmd.NodeUpSource,
@@ -124,12 +130,6 @@ func (i *Inventory) buildInventoryAssets(applyClusterCmd *ApplyClusterCmd, nodeu
 	inventoryMap["gcr.io/google_containers/pause-amd64:3.0"] = &InventoryAsset{
 		Data: "gcr.io/google_containers/pause-amd64:3.0",
 		Type: AssetContainer,
-	}
-
-	channel, err := api.ParseChannelLocation(spec.Channel)
-
-	if err != nil {
-		return nil, fmt.Errorf("error getting channel location: %v", err)
 	}
 
 	inventoryMap[channel] = &InventoryAsset{
@@ -285,6 +285,7 @@ func (i *Inventory) getBootstrapChannel(cluster *api.Cluster) ([]string, error) 
 		KubernetesVersion: *sv,
 	}
 
+	// CJL New code
 	delimiter := []byte("\n---\n")
 	var containers []string
 	for _, task := range fiContext.AllTasks() {
