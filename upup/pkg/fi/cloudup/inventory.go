@@ -43,6 +43,7 @@ const (
 	AssetContainer       = "Container"
 	AssetBinary          = "File"
 	AssetContainerBinary = "ContainerFile"
+	AssetBinaryChannel   = "ChannelFile"
 )
 
 type InventoryAsset struct {
@@ -69,7 +70,7 @@ func (i *Inventory) Build(cluster *api.Cluster, ig []*api.InstanceGroup, clients
 		return nil, fmt.Errorf("error building nodeup configs: %v", err)
 	}
 
-	a, err := i.buildInventoryAssets(applyClusterCmd.Cluster, nodeupConfigs)
+	a, err := i.buildInventoryAssets(applyClusterCmd, nodeupConfigs)
 
 	if err != nil {
 		return nil, fmt.Errorf("error building inventory assests: %v", err)
@@ -79,11 +80,16 @@ func (i *Inventory) Build(cluster *api.Cluster, ig []*api.InstanceGroup, clients
 }
 
 // buildInventoryAssets builds a map of all unique inventory assets.
-func (i *Inventory) buildInventoryAssets(cluster *api.Cluster, nodeupConfigs []*nodeup.NodeUpConfig) ([]*InventoryAsset, error) {
+func (i *Inventory) buildInventoryAssets(applyClusterCmd *ApplyClusterCmd, nodeupConfigs []*nodeup.NodeUpConfig) ([]*InventoryAsset, error) {
 
 	inventoryMap := make(map[string]*InventoryAsset)
 
-	spec := cluster.Spec
+	spec := applyClusterCmd.Cluster.Spec
+
+	inventoryMap[applyClusterCmd.NodeUpSource] = &InventoryAsset{
+		Data: applyClusterCmd.NodeUpSource,
+		Type: AssetBinary,
+	}
 
 	// List of all containers in the API
 	inventoryMap[spec.KubeAPIServer.Image] = &InventoryAsset{
@@ -120,7 +126,7 @@ func (i *Inventory) buildInventoryAssets(cluster *api.Cluster, nodeupConfigs []*
 		Type: AssetContainer,
 	}
 
-	channel, err := api.ParseChannelLocation(cluster.Spec.Channel)
+	channel, err := api.ParseChannelLocation(spec.Channel)
 
 	if err != nil {
 		return nil, fmt.Errorf("error getting channel location: %v", err)
@@ -128,7 +134,7 @@ func (i *Inventory) buildInventoryAssets(cluster *api.Cluster, nodeupConfigs []*
 
 	inventoryMap[channel] = &InventoryAsset{
 		Data: channel,
-		Type: AssetBinary,
+		Type: AssetBinaryChannel,
 	}
 
 	// nodeup items
@@ -156,7 +162,7 @@ func (i *Inventory) buildInventoryAssets(cluster *api.Cluster, nodeupConfigs []*
 	}
 
 	// bootstrap items
-	bootstrapConfigs, err := i.getBootstrapChannel(cluster)
+	bootstrapConfigs, err := i.getBootstrapChannel(applyClusterCmd.Cluster)
 
 	if err != nil {
 		return nil, fmt.Errorf("error building bootstrap images: %v", err)
@@ -173,6 +179,14 @@ func (i *Inventory) buildInventoryAssets(cluster *api.Cluster, nodeupConfigs []*
 	var a []*InventoryAsset
 	for _, value := range inventoryMap {
 		a = append(a, value)
+		if value.Type == AssetBinary {
+			sha := &InventoryAsset{
+				Type: AssetBinary,
+				Data: value.Data + ".sha1",
+			}
+
+			a = append(a, sha)
+		}
 	}
 
 	return a, nil
