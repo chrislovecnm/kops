@@ -233,6 +233,10 @@ func extractAssets(f *util.Factory, options *ToolboxInventoryOptions) ([]*cloudu
 
 	}
 
+	if cluster == nil {
+		return nil, nil, fmt.Errorf("error reading full cluster spec")
+	}
+
 	if cluster.Spec.KubernetesVersion == "" {
 		channel, err := api.LoadChannel(options.Channel)
 		if err != nil {

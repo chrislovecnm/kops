@@ -26,18 +26,23 @@ import (
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	"k8s.io/kubernetes/pkg/util/i18n"
+	"strings"
 )
 
 type ToolboxStageInventoryOptions struct {
 	*ToolboxInventoryOptions
 	Repository      string
 	FileDestination string
+	StageFiles      bool
+	StageContainers bool
 }
 
 func (o *ToolboxStageInventoryOptions) InitDefaults() {
 	o.Channel = api.DefaultChannel
 	o.Output = OutputTable
 	o.Channel = "stable"
+	o.StageContainers = true
+	o.StageFiles = true
 }
 
 var (
@@ -46,9 +51,8 @@ var (
 		
 		Note: 
 		
-		   1- This command assumes Docker is installed and the user has the privileges to load and push images.
-		   
-		   2- User is authenticated to the provided Docker repository.`))
+		1. This command assumes Docker is installed and the user has the privileges to load and push images.
+		2. User is authenticated to the provided Docker repository.`))
 
 	toolbox_stage_inventory_example = templates.Examples(i18n.T(`
 		# Stage inventory files from a yaml file
@@ -59,6 +63,8 @@ var (
 	toolbox_stage_inventory_short = i18n.T(`Stage inventory files to the specified destinations(Repository/FileDestination).`)
 	toolbox_stage_inventory_use   = i18n.T("stage-inventory")
 )
+
+// TODO need to document all of the public methods. Follow go standards.
 
 func NewCmdToolboxStageInventory(f *util.Factory, out io.Writer) *cobra.Command {
 	options := &ToolboxStageInventoryOptions{
@@ -87,6 +93,26 @@ func NewCmdToolboxStageInventory(f *util.Factory, out io.Writer) *cobra.Command 
 
 			options.ClusterName = rootCommand.clusterName
 
+			if len(options.Filenames) == 0 && options.ClusterName == "" {
+				exitWithError(fmt.Errorf("--filename or --name option must be used to supply cluster information."))
+				return
+			}
+
+			if options.FileDestination == "" && options.StageFiles {
+				exitWithError(fmt.Errorf("Please provide s3 location via --file-destination flag."))
+				return
+			}
+
+			if options.Repository == "" && options.StageContainers {
+				exitWithError(fmt.Errorf("Please provide repository location via --repository flag."))
+				return
+			}
+
+			if !options.StageFiles && !options.StageContainers {
+				exitWithError(fmt.Errorf("Please choose at least one of --stage-containers or --stage-files flag(s)."))
+				return
+			}
+
 			err = RunToolboxStageInventory(f, out, options)
 
 			if err != nil {
@@ -96,11 +122,15 @@ func NewCmdToolboxStageInventory(f *util.Factory, out io.Writer) *cobra.Command 
 		},
 	}
 
-	cmd.Flags().StringVar(&options.Channel, "channel", options.Channel, "Channel for default versions and configuration to use")
-	cmd.Flags().StringVar(&options.KubernetesVersion, "kubernetes-version", options.KubernetesVersion, "Version of kubernetes to run (defaults to version in channel)")
+	cmd.Flags().StringVarP(&options.Channel, "channel", "c", options.Channel, "Channel for default versions and configuration to use")
+	cmd.Flags().StringVarP(&options.KubernetesVersion, "kubernetes-version", "k", options.KubernetesVersion, "Version of kubernetes to run (defaults to version in channel)")
 	cmd.Flags().StringArrayVarP(&options.Filenames, "filename", "f", options.Filenames, "Filename to use to create the resource")
-	cmd.Flags().StringVar(&options.Repository, "repository", options.Repository, "Repository location used to stage inventory containers")
-	cmd.Flags().StringVar(&options.FileDestination, "fileDestination", options.FileDestination, "FileDestination location used to stage inventory files")
+	cmd.Flags().StringVarP(&options.Repository, "repository", "r", options.Repository, "Repository location used to stage inventory containers")
+	cmd.Flags().StringVarP(&options.FileDestination, "file-destination", "d", options.FileDestination, "FileDestination location used to stage inventory files")
+	cmd.Flags().BoolVar(&options.StageContainers, "stage-containers", options.StageContainers, "Stage containers")
+	cmd.Flags().BoolVar(&options.StageFiles, "stage-files", options.StageFiles, "Stage files")
+	cmd.MarkFlagRequired("file-destination")
+	cmd.MarkFlagRequired("repository")
 
 	return cmd
 }
@@ -110,13 +140,16 @@ func RunToolboxStageInventory(f *util.Factory, out io.Writer, options *ToolboxSt
 
 	assets, _, err := extractAssets(f, options.ToolboxInventoryOptions)
 	if err != nil {
-		return fmt.Errorf("Error extracting assesets file(s) %q, %v", options.Filenames, err)
+		return fmt.Errorf("Error extracting assets file(s) %q, %v", options.Filenames, err)
 	}
 
-	stageInventory := cloudup.NewStageInventory(options.FileDestination, options.Repository, assets)
+	options.FileDestination = strings.TrimSuffix(options.FileDestination, "/")
+
+	// FIXME refactor too many parameters now :(
+	stageInventory := cloudup.NewStageInventory(options.FileDestination, options.StageFiles, options.Repository, options.StageContainers, assets)
 	err = stageInventory.Run()
 	if err != nil {
-		return fmt.Errorf("Error processing assesets file(s) %q, %v", options.Filenames, err)
+		return fmt.Errorf("Error processing assets file(s) %q, %v", options.Filenames, err)
 	}
 
 	return nil

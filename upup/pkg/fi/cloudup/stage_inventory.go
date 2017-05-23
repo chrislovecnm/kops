@@ -29,6 +29,8 @@ import (
 
 	"k8s.io/kops/util/pkg/vfs"
 
+	"net/url"
+
 	"github.com/golang/glog"
 )
 
@@ -57,18 +59,25 @@ type StageInventory struct {
 	assets           []*InventoryAsset
 }
 
-func NewStageInventory(fileRepo, containerRepo string, assets []*InventoryAsset) *StageInventory {
-	assetTransferers := map[string]AssetTransferer{
-		AssetBinary: &FileAssetTransferer{
+func NewStageInventory(fileRepo string, stageFiles bool, containerRepo string, stageContainers bool, assets []*InventoryAsset) *StageInventory {
+
+	assetTransferers := make(map[string]AssetTransferer)
+
+	if stageFiles {
+		assetTransferers[AssetBinary] = &FileAssetTransferer{
 			fileRepo: fileRepo,
-		},
-		AssetContainer: &ContainerAssetTransferer{
-			containerRepo: containerRepo,
-		},
-		AssetContainerBinary: &ContainerFileAssetTransferer{
-			containerRepo: containerRepo,
-		},
+		}
 	}
+
+	if stageContainers {
+		assetTransferers[AssetContainer] = &ContainerAssetTransferer{
+			containerRepo: containerRepo,
+		}
+		assetTransferers[AssetContainerBinary] = &ContainerFileAssetTransferer{
+			containerRepo: containerRepo,
+		}
+	}
+
 	return &StageInventory{
 		assetTransferers: assetTransferers,
 		assets:           assets,
@@ -92,7 +101,7 @@ func (i *StageInventory) processAsset(asset *InventoryAsset) error {
 
 	assetTransferer := i.assetTransferers[asset.Type]
 
-	glog.Infof("processing transferer: %#v - asset: %#v\n", assetTransferer, asset)
+	glog.Infof("processing transfer: %#v - asset: %#v\n", assetTransferer, asset)
 
 	err := assetTransferer.Transfer(asset)
 	if err != nil {
@@ -103,7 +112,7 @@ func (i *StageInventory) processAsset(asset *InventoryAsset) error {
 }
 
 func (f *FileAssetTransferer) Transfer(asset *InventoryAsset) error {
-	glog.Infof("FileAssetTransferer.Transfer: %s - %s\n", asset.Type, asset.Data)
+	glog.Infof("File asset transfer: %s - %s\n", asset.Type, asset.Data)
 
 	glog.Infoln("FileAssetTransferer.Transfer: reading data...")
 	data, err := vfs.Context.ReadFile(asset.Data)
@@ -111,8 +120,12 @@ func (f *FileAssetTransferer) Transfer(asset *InventoryAsset) error {
 		return fmt.Errorf("Error FileAssetTransferer.Transfer  unable to read path %q: %v", asset.Data, err)
 	}
 
-	filePath := strings.Split(asset.Data, "/")
-	s3Path := fmt.Sprintf("%s/%s", f.fileRepo, filePath[len(filePath)-1])
+	fileURL, err := url.Parse(asset.Data)
+	if err != nil {
+		return fmt.Errorf("Error FileAssetTransferer.Transfer  unable to read path %q: %v", asset.Data, err)
+	}
+
+	s3Path := f.fileRepo + fileURL.Path
 	glog.Infof("FileAssetTransferer.Transfer: s3Path: %s\n", s3Path)
 	destinationRegistry, err := vfs.Context.BuildVfsPath(s3Path)
 	if err != nil {
@@ -162,6 +175,7 @@ func (c *ContainerAssetTransferer) Transfer(asset *InventoryAsset) error {
 
 func (c *ContainerFileAssetTransferer) Transfer(asset *InventoryAsset) error {
 
+	// TODO update logging to match kops, no use of method and struct member names
 	glog.Infof("ContainerFileAssetTransferer.Transfer starting: %s - %s\n", asset.Type, asset.Data)
 
 	uuid, err := NewUUID()
@@ -170,6 +184,7 @@ func (c *ContainerFileAssetTransferer) Transfer(asset *InventoryAsset) error {
 	}
 
 	pathParts := strings.Split(asset.Data, "/")
+	// TODO get system tmp folder and make a temp diretory
 	localFile := fmt.Sprintf("/tmp/%s-%s", uuid, pathParts[len(pathParts)-1])
 
 	glog.Infof("Local file: %s\n", localFile)
