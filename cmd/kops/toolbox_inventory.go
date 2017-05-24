@@ -259,7 +259,7 @@ func extractAssets(f *util.Factory, options *ToolboxInventoryOptions) ([]*cloudu
 		DryRun:         true,
 		Cluster:        cluster,
 		InstanceGroups: ig,
-		TargetName: cloudup.TargetDryRun,
+		TargetName:     cloudup.TargetDryRun,
 		Models:         []string{"config", "proto", "cloudup"},
 	}
 

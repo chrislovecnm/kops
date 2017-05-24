@@ -290,7 +290,7 @@ func (c *ApplyClusterCmd) Run() error {
 	modelContext := &model.KopsModelContext{
 		Cluster:        cluster,
 		InstanceGroups: c.InstanceGroups,
-		DryRun: c.DryRun,
+		DryRun:         c.DryRun,
 	}
 
 	switch fi.CloudProviderID(cluster.Spec.CloudProvider) {

@@ -53,11 +53,11 @@ type InventoryAsset struct {
 }
 
 type Inventory struct {
-	Cluster *api.Cluster
-	InstanceGroup []*api.InstanceGroup
-	ClientSet simple.Clientset
+	Cluster         *api.Cluster
+	InstanceGroup   []*api.InstanceGroup
+	ClientSet       simple.Clientset
 	ChannelLocation string
-	NodeUpConfigs []*nodeup.NodeUpConfig
+	NodeUpConfigs   []*nodeup.NodeUpConfig
 }
 
 // Build creates a slice of inventory assets that are the inventory of containers and binaries.
@@ -87,7 +87,6 @@ func (i *Inventory) Build() ([]*InventoryAsset, error) {
 
 // buildInventoryAssets builds a map of all unique inventory assets.
 func (i *Inventory) buildInventoryAssets(applyClusterCmd *ApplyClusterCmd) ([]*InventoryAsset, error) {
-
 
 	spec := applyClusterCmd.Cluster.Spec
 	// CJL new code
@@ -290,7 +289,7 @@ func (i *Inventory) getBootstrapChannel(cluster *api.Cluster) ([]string, error) 
 
 	return containers, nil
 }
-func (i *Inventory)renderBootstrapContainers(fiContext *fi.Context, optionsContext *components.OptionsContext) []string {
+func (i *Inventory) renderBootstrapContainers(fiContext *fi.Context, optionsContext *components.OptionsContext) []string {
 	delimiter := []byte("\n---\n")
 	var containers []string
 	for _, task := range fiContext.AllTasks() {

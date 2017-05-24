@@ -64,8 +64,8 @@ func TestAllContainers(t *testing.T) {
 			DryRun:         true,
 			Cluster:        c,
 			InstanceGroups: ig,
-			TargetName: cloudup.TargetDryRun,
-//			Models:         []string{"config", "proto", },
+			TargetName:     cloudup.TargetDryRun,
+			//			Models:         []string{"config", "proto", },
 		}
 
 		err = applyClusterCmd.Run()
