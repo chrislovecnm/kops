@@ -57,15 +57,46 @@ func TestAllContainers(t *testing.T) {
 			t.Fatalf("unable to get client set %v", err)
 		}
 
-		inventory := &cloudup.Inventory{}
+		// TODO channel needs to be a file ... it is getting
+		// github.com channel
+		applyClusterCmd := &cloudup.ApplyClusterCmd{
+			Clientset:      cs,
+			DryRun:         true,
+			Cluster:        c,
+			InstanceGroups: ig,
+			TargetName: cloudup.TargetDryRun,
+//			Models:         []string{"config", "proto", },
+		}
 
-		a, err := inventory.Build(c, ig, cs)
+		err = applyClusterCmd.Run()
+
+		if err != nil {
+			t.Fatalf("error applying cluster build: %v", err)
+		}
+
+		a := applyClusterCmd.InventoryAssets
 
 		if err != nil {
 			t.Fatalf("error building inventory assests: %v", err)
 		}
 
-		containers := []string{"gcr.io/google_containers/cluster-proportional-autoscaler-amd64:1.1.1",
+		assets := []string{
+			"https://kubeupv2.s3.amazonaws.com/kops/1.5.0/images/protokube.tar.gz",
+			"gcr.io/google_containers/k8s-dns-dnsmasq-nanny-amd64:1.14.1",
+			"gcr.io/google_containers/kube-proxy:v1.6.3",
+			"gcr.io/google_containers/pause-amd64:3.0",
+			"https://storage.googleapis.com/kubernetes-release/release/v1.6.3/bin/linux/amd64/kubectl",
+			"https://storage.googleapis.com/kubernetes-release/release/v1.6.3/bin/linux/amd64/kubectl.sha1",
+			"https://kubeupv2.s3.amazonaws.com/kops/1.5.0/linux/amd64/utils.tar.gz",
+			"https://kubeupv2.s3.amazonaws.com/kops/1.5.0/linux/amd64/utils.tar.gz.sha1",
+			"https://storage.googleapis.com/kubernetes-release/release/v1.6.3/bin/linux/amd64/kubelet",
+			"https://storage.googleapis.com/kubernetes-release/release/v1.6.3/bin/linux/amd64/kubelet.sha1",
+			"https://kubeupv2.s3.amazonaws.com/kops/1.5.0/linux/amd64/nodeup",
+			"https://kubeupv2.s3.amazonaws.com/kops/1.5.0/linux/amd64/nodeup.sha1",
+			"https://raw.githubusercontent.com/kubernetes/kops/master/channels/stable",
+			"https://storage.googleapis.com/kubernetes-release/network-plugins/cni-0799f5732f2a11b329d9e3d51b9c8f2e3759f2ff.tar.gz",
+			"https://storage.googleapis.com/kubernetes-release/network-plugins/cni-0799f5732f2a11b329d9e3d51b9c8f2e3759f2ff.tar.gz.sha1",
+			"gcr.io/google_containers/cluster-proportional-autoscaler-amd64:1.1.1",
 			"gcr.io/google_containers/etcd:2.2.1",
 			"gcr.io/google_containers/k8s-dns-dnsmasq-nanny-amd64:1.14.1",
 			"gcr.io/google_containers/k8s-dns-kube-dns-amd64:1.14.1",
@@ -81,16 +112,16 @@ func TestAllContainers(t *testing.T) {
 		}
 
 		var missing []string
-		for _, container := range containers {
+		for _, asset := range assets {
 			notFound := true
 			for _, j := range a {
-				if container == j.Data {
+				if asset == j.Data {
 					notFound = false
 				}
 			}
 
 			if notFound {
-				missing = append(missing, container)
+				missing = append(missing, asset)
 			}
 
 		}

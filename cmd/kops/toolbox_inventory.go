@@ -253,13 +253,23 @@ func extractAssets(f *util.Factory, options *ToolboxInventoryOptions) ([]*cloudu
 
 	}
 
-	inventory := &cloudup.Inventory{}
+	// FIXME I am getting MockAWSCommand issue
+	applyClusterCmd := &cloudup.ApplyClusterCmd{
+		Clientset:      clientset,
+		DryRun:         true,
+		Cluster:        cluster,
+		InstanceGroups: ig,
+		TargetName: cloudup.TargetDryRun,
+		Models:         []string{"config", "proto", "cloudup"},
+	}
 
-	a, err := inventory.Build(cluster, ig, clientset)
+	err = applyClusterCmd.Run()
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("error building inventory assests: %v", err)
+		return nil, nil, fmt.Errorf("error applying cluster build: %v", err)
 	}
+
+	a := applyClusterCmd.InventoryAssets
 
 	return a, cluster, nil
 }

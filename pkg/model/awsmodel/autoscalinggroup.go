@@ -87,8 +87,10 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 
 			var err error
 
-			if t.SSHKey, err = b.LinkToSSHKey(); err != nil {
-				return err
+			if !b.DryRun {
+				if t.SSHKey, err = b.LinkToSSHKey(); err != nil {
+					return err
+				}
 			}
 
 			if t.UserData, err = b.BootstrapScript.ResourceNodeUp(ig); err != nil {

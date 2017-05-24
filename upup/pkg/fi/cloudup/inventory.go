@@ -53,24 +53,30 @@ type InventoryAsset struct {
 }
 
 type Inventory struct {
+	Cluster *api.Cluster
+	InstanceGroup []*api.InstanceGroup
+	ClientSet simple.Clientset
+	ChannelLocation string
+	NodeUpConfigs []*nodeup.NodeUpConfig
 }
 
 // Build creates a slice of inventory assets that are the inventory of containers and binaries.
-func (i *Inventory) Build(cluster *api.Cluster, ig []*api.InstanceGroup, clientset simple.Clientset) ([]*InventoryAsset, error) {
+func (i *Inventory) Build() ([]*InventoryAsset, error) {
 
-	applyClusterCmd, err := i.buildApplyCluster(cluster, ig, clientset)
+	applyClusterCmd, err := i.buildApplyCluster()
 
 	if err != nil {
 		return nil, fmt.Errorf("error applying cluster build: %v", err)
 	}
 
-	nodeupConfigs, err := i.buildNodeUpConfigs(applyClusterCmd)
+	spec := applyClusterCmd.Cluster.Spec
+	i.ChannelLocation, err = api.ParseChannelLocation(spec.Channel)
 
 	if err != nil {
-		return nil, fmt.Errorf("error building nodeup configs: %v", err)
+		return nil, fmt.Errorf("error getting channel location: %v", err)
 	}
 
-	a, err := i.buildInventoryAssets(applyClusterCmd, nodeupConfigs)
+	a, err := i.buildInventoryAssets(applyClusterCmd)
 
 	if err != nil {
 		return nil, fmt.Errorf("error building inventory assests: %v", err)
@@ -80,18 +86,12 @@ func (i *Inventory) Build(cluster *api.Cluster, ig []*api.InstanceGroup, clients
 }
 
 // buildInventoryAssets builds a map of all unique inventory assets.
-func (i *Inventory) buildInventoryAssets(applyClusterCmd *ApplyClusterCmd, nodeupConfigs []*nodeup.NodeUpConfig) ([]*InventoryAsset, error) {
+func (i *Inventory) buildInventoryAssets(applyClusterCmd *ApplyClusterCmd) ([]*InventoryAsset, error) {
+
 
 	spec := applyClusterCmd.Cluster.Spec
-	channel, err := api.ParseChannelLocation(spec.Channel)
-
-	if err != nil {
-		return nil, fmt.Errorf("error getting channel location: %v", err)
-	}
-
 	// CJL new code
 	inventoryMap := make(map[string]*InventoryAsset)
-
 	inventoryMap[applyClusterCmd.NodeUpSource] = &InventoryAsset{
 		Data: applyClusterCmd.NodeUpSource,
 		Type: AssetBinary,
@@ -132,13 +132,13 @@ func (i *Inventory) buildInventoryAssets(applyClusterCmd *ApplyClusterCmd, nodeu
 		Type: AssetContainer,
 	}
 
-	inventoryMap[channel] = &InventoryAsset{
-		Data: channel,
+	inventoryMap[i.ChannelLocation] = &InventoryAsset{
+		Data: i.ChannelLocation,
 		Type: AssetBinaryChannel,
 	}
 
 	// nodeup items
-	for _, n := range nodeupConfigs {
+	for _, n := range i.NodeUpConfigs {
 
 		// protokube
 		inventoryMap[n.ProtokubeImage.Source] = &InventoryAsset{
@@ -193,19 +193,19 @@ func (i *Inventory) buildInventoryAssets(applyClusterCmd *ApplyClusterCmd, nodeu
 }
 
 // buildApplyCluster runs the build method in apply cluster.
-func (i *Inventory) buildApplyCluster(cluster *api.Cluster, ig []*api.InstanceGroup, clientset simple.Clientset) (*ApplyClusterCmd, error) {
+func (i *Inventory) buildApplyCluster() (*ApplyClusterCmd, error) {
 	applyClusterCmd := &ApplyClusterCmd{
-		Clientset:      clientset,
+		Clientset:      i.ClientSet,
 		DryRun:         true,
-		Cluster:        cluster,
-		InstanceGroups: ig,
+		Cluster:        i.Cluster,
+		InstanceGroups: i.InstanceGroup,
 	}
 
-	err := applyClusterCmd.Build()
+	//err := applyClusterCmd.Build()
 
-	if err != nil {
-		return nil, fmt.Errorf("error applying cluster build: %v", err)
-	}
+	//if err != nil {
+	//	return nil, fmt.Errorf("error applying cluster build: %v", err)
+	//}
 
 	return applyClusterCmd, nil
 }
@@ -286,6 +286,11 @@ func (i *Inventory) getBootstrapChannel(cluster *api.Cluster) ([]string, error) 
 	}
 
 	// CJL New code
+	containers := i.renderBootstrapContainers(fiContext, optionsContext)
+
+	return containers, nil
+}
+func (i *Inventory)renderBootstrapContainers(fiContext *fi.Context, optionsContext *components.OptionsContext) []string {
 	delimiter := []byte("\n---\n")
 	var containers []string
 	for _, task := range fiContext.AllTasks() {
@@ -336,8 +341,7 @@ func (i *Inventory) getBootstrapChannel(cluster *api.Cluster) ([]string, error) 
 		}
 
 	}
-
-	return containers, nil
+	return containers
 }
 
 func getContainers(c []k8s_api.Container, containers []string) []string {
@@ -349,6 +353,7 @@ func getContainers(c []k8s_api.Container, containers []string) []string {
 }
 
 // buildNodeUpConfigs gets the nodeup configurations from apply cluster.
+/*
 func (i *Inventory) buildNodeUpConfigs(applyClusterCmd *ApplyClusterCmd) ([]*nodeup.NodeUpConfig, error) {
 	path, err := applyClusterCmd.GetConfigBase()
 	if err != nil {
@@ -380,4 +385,4 @@ func (i *Inventory) buildNodeUpConfigs(applyClusterCmd *ApplyClusterCmd) ([]*nod
 	}
 
 	return configs, nil
-}
+}*/

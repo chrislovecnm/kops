@@ -43,6 +43,7 @@ type KopsModelContext struct {
 	InstanceGroups []*kops.InstanceGroup
 
 	SSHPublicKeys [][]byte
+	DryRun bool
 }
 
 // Will attempt to calculate a meaningful name for an ELB given a prefix
