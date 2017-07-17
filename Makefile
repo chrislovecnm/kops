@@ -478,14 +478,10 @@ apimachinery:
 	${GOPATH}/bin/conversion-gen --skip-unsafe=true --input-dirs k8s.io/kops/pkg/apis/kops/v1alpha2 --v=0  --output-file-base=zz_generated.conversion
 	${GOPATH}/bin/defaulter-gen --input-dirs k8s.io/kops/pkg/apis/kops/v1alpha1 --v=0  --output-file-base=zz_generated.defaults
 	${GOPATH}/bin/defaulter-gen --input-dirs k8s.io/kops/pkg/apis/kops/v1alpha2 --v=0  --output-file-base=zz_generated.defaults
-	#go install github.com/ugorji/go/codec/codecgen
-	# codecgen works only if invoked from directory where the file is located.
-	#cd pkg/apis/kops/v1alpha2/ && ~/k8s/bin/codecgen -d 1234 -o types.generated.go instancegroup.go cluster.go federation.go
-	#cd pkg/apis/kops/v1alpha1/ && ~/k8s/bin/codecgen -d 1234 -o types.generated.go instancegroup.go cluster.go federation.go
-	#cd pkg/apis/kops/ && ~/k8s/bin/codecgen -d 1234 -o types.generated.go instancegroup.go cluster.go federation.go
 	${GOPATH}/bin/client-gen  --input-base k8s.io/kops/pkg/apis/ --input="kops/,kops/v1alpha1,kops/v1alpha2" --clientset-path k8s.io/kops/pkg/client/clientset_generated/
 	${GOPATH}/bin/client-gen  --clientset-name="clientset" --input-base k8s.io/kops/pkg/apis/ --input="kops/,kops/v1alpha1,kops/v1alpha2" --clientset-path k8s.io/kops/pkg/client/clientset_generated/
-
+	#${GOPATH}/bin/openapi-gen  --output-package "k8s.io/kops/pkg/openapi" --input-dirs k8s.io/kops/pkg/apis/kops/v1alpha2,k8s.io/kops/pkg/apis/kops/v1alpha1,k8s.io/kops/pkg/apis/kops
+	${GOPATH}/bin/openapi-gen  --output-package "k8s.io/kops/pkg/openapi" --input-dirs k8s.io/kops/pkg/apis/kops/v1alpha2,k8s.io/kops/pkg/apis/kops/v1alpha1
 
 # -----------------------------------------------------
 # kops-server
