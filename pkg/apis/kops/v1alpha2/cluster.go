@@ -179,6 +179,27 @@ type ClusterSpec struct {
 	IAM *IAMSpec `json:"iam,omitempty"`
 	// EncryptionConfig holds the encryption config
 	EncryptionConfig *bool `json:"encryptionConfig,omitempty"`
+	// SecurityGroups allows for use an existing custom cloud security group for the instances.
+	// One example is to specify the name of an AWS security group for master and another for the nodes.
+	SecurityGroups *SecurityGroups `json:"securityGroups,omitempty"`
+}
+
+// Security groups for master(s) and node(s)
+type SecurityGroups struct {
+	// Master is the name of the sg to use for the master
+	Master *string `json:"master,omitempty"`
+
+	// Node is the name of the sg to use for the nodes
+	Node *string `json:"node,omitempty"`
+
+	// Bastion is the name of the sg to use for the bastion
+	Bastion *string `json:"bastion,omitempty"`
+
+	// BastionELB is the name of the sg to use for the bastion elb
+	BastionELB *string `json:"bastionELB,omitempty"`
+
+	// ApiELB is the name of the sg to use for the api elb
+	ApiELB *string `json:"apiELB,omitempty"`
 }
 
 // FileAssetSpec defines the structure for a file asset
