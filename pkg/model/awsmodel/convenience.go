@@ -32,3 +32,8 @@ func i64(v int64) *int64 {
 func i32(v int32) *int32 {
 	return fi.Int32(v)
 }
+
+// sb is a helper that builds a *bool from an bool value
+func sb(v bool) *bool {
+	return fi.Bool(v)
+}

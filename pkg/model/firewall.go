@@ -41,6 +41,7 @@ type FirewallModelBuilder struct {
 
 var _ fi.ModelBuilder = &FirewallModelBuilder{}
 
+// Build creates a ModelBuilderContext for a FirewallModelBuilder
 func (b *FirewallModelBuilder) Build(c *fi.ModelBuilderContext) error {
 	if err := b.buildNodeRules(c); err != nil {
 		return err
@@ -52,48 +53,69 @@ func (b *FirewallModelBuilder) Build(c *fi.ModelBuilderContext) error {
 }
 
 func (b *FirewallModelBuilder) buildNodeRules(c *fi.ModelBuilderContext) error {
-	name := "nodes." + b.ClusterName()
-
-	{
-		t := &awstasks.SecurityGroup{
-			Name:             s(name),
-			Lifecycle:        b.Lifecycle,
-			VPC:              b.LinkToVPC(),
-			Description:      s("Security group for nodes"),
-			RemoveExtraRules: []string{"port=22"},
+	createSecurityGroup := true
+	if b.Cluster.Spec.SecurityGroups != nil {
+		if b.Cluster.Spec.SecurityGroups.Node != nil {
+			createSecurityGroup = false
+			glog.V(8).Infof("shared security group: %s for node found", *b.Cluster.Spec.SecurityGroups.Node)
 		}
-		c.AddTask(t)
 	}
 
-	// Allow full egress
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:          s("node-egress"),
-			Lifecycle:     b.Lifecycle,
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
-			Egress:        fi.Bool(true),
-			CIDR:          s("0.0.0.0/0"),
+	if createSecurityGroup {
+		name := "nodes." + b.ClusterName()
+
+		{
+			t := &awstasks.SecurityGroup{
+				Name:             s(name),
+				Lifecycle:        b.Lifecycle,
+				VPC:              b.LinkToVPC(),
+				Description:      s("Security group for nodes"),
+				RemoveExtraRules: []string{"port=22"},
+			}
+			c.AddTask(t)
 		}
-		c.AddTask(t)
+
+		// Allow full egress
+		{
+			t := &awstasks.SecurityGroupRule{
+				Name:          s("node-egress"),
+				Lifecycle:     b.Lifecycle,
+				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
+				Egress:        fi.Bool(true),
+				CIDR:          s("0.0.0.0/0"),
+			}
+			c.AddTask(t)
+		}
+
+		// Nodes can talk to nodes
+		{
+			t := &awstasks.SecurityGroupRule{
+				Name:          s("all-node-to-node"),
+				Lifecycle:     b.Lifecycle,
+				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
+				SourceGroup:   b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
+			}
+			c.AddTask(t)
+		}
+
+		// We _should_ block per port... but:
+		// * It causes e2e tests to break
+		// * Users expect to be able to reach pods
+		// * If users are running an overlay, we punch a hole in it anyway
+		//b.applyNodeToMasterAllowSpecificPorts(c)
+		b.applyNodeToMasterBlockSpecificPorts(c)
+		return nil
 	}
 
-	// Nodes can talk to nodes
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:          s("all-node-to-node"),
-			Lifecycle:     b.Lifecycle,
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
-			SourceGroup:   b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
-		}
-		c.AddTask(t)
+	// re-using provided security group for the node
+	glog.V(8).Infof("shared security group: %s for node found", *b.Cluster.Spec.SecurityGroups.Node)
+	t := &awstasks.SecurityGroup{
+		ID:        b.Cluster.Spec.SecurityGroups.Node,
+		Lifecycle: b.Lifecycle,
+		VPC:       b.LinkToVPC(),
+		Shared:    sb(true),
 	}
-
-	// We _should_ block per port... but:
-	// * It causes e2e tests to break
-	// * Users expect to be able to reach pods
-	// * If users are running an overlay, we punch a hole in it anyway
-	//b.applyNodeToMasterAllowSpecificPorts(c)
-	b.applyNodeToMasterBlockSpecificPorts(c)
+	c.AddTask(t)
 
 	return nil
 }
@@ -102,6 +124,8 @@ func (b *FirewallModelBuilder) applyNodeToMasterAllowSpecificPorts(c *fi.ModelBu
 	// TODO: We need to remove the ALL rule
 	//W1229 12:32:22.300132    9003 executor.go:109] error running task "SecurityGroupRule/node-to-master-443" (9m58s remaining to succeed): error creating SecurityGroupIngress: InvalidPermission.Duplicate: the specified rule "peer: sg-f6b1a68b, ALL, ALLOW" already exists
 	//status code: 400, request id: 6a69627f-9a26-4bd0-b294-a9a96f89bc46
+
+	// TODO this appears to be dead code - do we need to remove?
 
 	udpPorts := []int64{}
 	tcpPorts := []int64{}
@@ -269,61 +293,81 @@ func (b *FirewallModelBuilder) applyNodeToMasterBlockSpecificPorts(c *fi.ModelBu
 }
 
 func (b *FirewallModelBuilder) buildMasterRules(c *fi.ModelBuilderContext) error {
-	name := "masters." + b.ClusterName()
-
-	{
-		t := &awstasks.SecurityGroup{
-			Name:        s(name),
-			Lifecycle:   b.Lifecycle,
-			VPC:         b.LinkToVPC(),
-			Description: s("Security group for masters"),
-			RemoveExtraRules: []string{
-				"port=22",   // SSH
-				"port=443",  // k8s api
-				"port=4001", // etcd main (etcd events is 4002)
-				"port=4789", // VXLAN
-				"port=179",  // Calico
-
-				// TODO: UDP vs TCP
-				// TODO: Protocol 4 for calico
-			},
+	createSecurityGroup := true
+	if b.Cluster.Spec.SecurityGroups != nil {
+		if b.Cluster.Spec.SecurityGroups.Master != nil {
+			createSecurityGroup = false
+			glog.V(8).Infof("shared security group: %s for master found", *b.Cluster.Spec.SecurityGroups.Master)
 		}
-		c.AddTask(t)
 	}
 
-	// Allow full egress
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:          s("master-egress"),
-			Lifecycle:     b.Lifecycle,
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
-			Egress:        fi.Bool(true),
-			CIDR:          s("0.0.0.0/0"),
+	if createSecurityGroup {
+		name := "masters." + b.ClusterName()
+
+		{
+			t := &awstasks.SecurityGroup{
+				Name:        s(name),
+				Lifecycle:   b.Lifecycle,
+				VPC:         b.LinkToVPC(),
+				Description: s("Security group for masters"),
+				RemoveExtraRules: []string{
+					"port=22",   // SSH
+					"port=443",  // k8s api
+					"port=4001", // etcd main (etcd events is 4002)
+					"port=4789", // VXLAN
+					"port=179",  // Calico
+
+					// TODO: UDP vs TCP
+					// TODO: Protocol 4 for calico
+				},
+			}
+			c.AddTask(t)
 		}
-		c.AddTask(t)
+
+		// Allow full egress
+		{
+			t := &awstasks.SecurityGroupRule{
+				Name:          s("master-egress"),
+				Lifecycle:     b.Lifecycle,
+				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
+				Egress:        fi.Bool(true),
+				CIDR:          s("0.0.0.0/0"),
+			}
+			c.AddTask(t)
+		}
+
+		// Masters can talk to masters
+		{
+			t := &awstasks.SecurityGroupRule{
+				Name:          s("all-master-to-master"),
+				Lifecycle:     b.Lifecycle,
+				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
+				SourceGroup:   b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
+			}
+			c.AddTask(t)
+		}
+
+		// Masters can talk to nodes
+		{
+			t := &awstasks.SecurityGroupRule{
+				Name:          s("all-master-to-node"),
+				Lifecycle:     b.Lifecycle,
+				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
+				SourceGroup:   b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
+			}
+			c.AddTask(t)
+		}
+		return nil
 	}
 
-	// Masters can talk to masters
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:          s("all-master-to-master"),
-			Lifecycle:     b.Lifecycle,
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
-			SourceGroup:   b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
-		}
-		c.AddTask(t)
+	// re-using provided security group for master
+	glog.V(8).Infof("shared security group: %s for master found", *b.Cluster.Spec.SecurityGroups.Master)
+	t := &awstasks.SecurityGroup{
+		ID:        b.Cluster.Spec.SecurityGroups.Master,
+		Lifecycle: b.Lifecycle,
+		VPC:       b.LinkToVPC(),
+		Shared:    sb(true),
 	}
-
-	// Masters can talk to nodes
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:          s("all-master-to-node"),
-			Lifecycle:     b.Lifecycle,
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
-			SourceGroup:   b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
-		}
-		c.AddTask(t)
-	}
-
+	c.AddTask(t)
 	return nil
 }

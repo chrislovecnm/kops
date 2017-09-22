@@ -40,6 +40,7 @@ type APILoadBalancerBuilder struct {
 
 var _ fi.ModelBuilder = &APILoadBalancerBuilder{}
 
+// Build creates a ModelBuilderContext for a APILoadBalancerBuilder
 func (b *APILoadBalancerBuilder) Build(c *fi.ModelBuilderContext) error {
 	// Configuration where an ELB fronts the API
 	if !b.UseLoadBalancerForAPI() {
@@ -92,6 +93,14 @@ func (b *APILoadBalancerBuilder) Build(c *fi.ModelBuilderContext) error {
 		}
 	}
 
+	createSecurityGroup := true
+	if b.Cluster.Spec.SecurityGroups != nil {
+		if b.Cluster.Spec.SecurityGroups.ApiELB != nil {
+			glog.V(8).Infof("re-using security group: %s for api elb", b.Cluster.Spec.SecurityGroups.ApiELB)
+			createSecurityGroup = false
+		}
+	}
+
 	var elb *awstasks.LoadBalancer
 	{
 		loadBalancerName := b.GetELBName32("api")
@@ -106,10 +115,7 @@ func (b *APILoadBalancerBuilder) Build(c *fi.ModelBuilderContext) error {
 			Lifecycle: b.Lifecycle,
 
 			LoadBalancerName: s(loadBalancerName),
-			SecurityGroups: []*awstasks.SecurityGroup{
-				b.LinkToELBSecurityGroup("api"),
-			},
-			Subnets: elbSubnets,
+			Subnets:          elbSubnets,
 			Listeners: map[string]*awstasks.LoadBalancerListener{
 				"443": {InstancePort: 443},
 			},
@@ -128,6 +134,22 @@ func (b *APILoadBalancerBuilder) Build(c *fi.ModelBuilderContext) error {
 			},
 		}
 
+		if createSecurityGroup {
+			elb.SecurityGroups = []*awstasks.SecurityGroup{
+				b.LinkToELBSecurityGroup("api"),
+			}
+
+		} else {
+			elb.SecurityGroups = []*awstasks.SecurityGroup{
+				{
+					ID:        b.Cluster.Spec.SecurityGroups.ApiELB,
+					Lifecycle: b.Lifecycle,
+					Shared:    sb(true),
+					VPC:       b.LinkToVPC(),
+				},
+			}
+		}
+
 		switch lbSpec.Type {
 		case kops.LoadBalancerTypeInternal:
 			elb.Scheme = s("internal")
@@ -140,62 +162,64 @@ func (b *APILoadBalancerBuilder) Build(c *fi.ModelBuilderContext) error {
 		c.AddTask(elb)
 	}
 
-	// Create security group for API ELB
-	{
-		t := &awstasks.SecurityGroup{
-			Name:      s(b.ELBSecurityGroupName("api")),
-			Lifecycle: b.Lifecycle,
+	if createSecurityGroup {
+		// Create security group for API ELB
+		{
+			t := &awstasks.SecurityGroup{
+				Name:      s(b.ELBSecurityGroupName("api")),
+				Lifecycle: b.Lifecycle,
 
-			VPC:              b.LinkToVPC(),
-			Description:      s("Security group for api ELB"),
-			RemoveExtraRules: []string{"port=443"},
+				VPC:              b.LinkToVPC(),
+				Description:      s("Security group for api ELB"),
+				RemoveExtraRules: []string{"port=443"},
+			}
+			c.AddTask(t)
 		}
-		c.AddTask(t)
-	}
 
-	// Allow traffic from ELB to egress freely
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:      s("api-elb-egress"),
-			Lifecycle: b.Lifecycle,
-
-			SecurityGroup: b.LinkToELBSecurityGroup("api"),
-			Egress:        fi.Bool(true),
-			CIDR:          s("0.0.0.0/0"),
-		}
-		c.AddTask(t)
-	}
-
-	// Allow traffic into the ELB from KubernetesAPIAccess CIDRs
-	{
-		for _, cidr := range b.Cluster.Spec.KubernetesAPIAccess {
+		// Allow traffic from ELB to egress freely
+		{
 			t := &awstasks.SecurityGroupRule{
-				Name:      s("https-api-elb-" + cidr),
+				Name:      s("api-elb-egress"),
 				Lifecycle: b.Lifecycle,
 
 				SecurityGroup: b.LinkToELBSecurityGroup("api"),
-				CIDR:          s(cidr),
+				Egress:        fi.Bool(true),
+				CIDR:          s("0.0.0.0/0"),
+			}
+			c.AddTask(t)
+		}
+
+		// Allow traffic into the ELB from KubernetesAPIAccess CIDRs
+		{
+			for _, cidr := range b.Cluster.Spec.KubernetesAPIAccess {
+				t := &awstasks.SecurityGroupRule{
+					Name:      s("https-api-elb-" + cidr),
+					Lifecycle: b.Lifecycle,
+
+					SecurityGroup: b.LinkToELBSecurityGroup("api"),
+					CIDR:          s(cidr),
+					FromPort:      i64(443),
+					ToPort:        i64(443),
+					Protocol:      s("tcp"),
+				}
+				c.AddTask(t)
+			}
+		}
+
+		// Allow HTTPS to the master instances from the ELB
+		{
+			t := &awstasks.SecurityGroupRule{
+				Name:      s("https-elb-to-master"),
+				Lifecycle: b.Lifecycle,
+
+				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
+				SourceGroup:   b.LinkToELBSecurityGroup("api"),
 				FromPort:      i64(443),
 				ToPort:        i64(443),
 				Protocol:      s("tcp"),
 			}
 			c.AddTask(t)
 		}
-	}
-
-	// Allow HTTPS to the master instances from the ELB
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:      s("https-elb-to-master"),
-			Lifecycle: b.Lifecycle,
-
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
-			SourceGroup:   b.LinkToELBSecurityGroup("api"),
-			FromPort:      i64(443),
-			ToPort:        i64(443),
-			Protocol:      s("tcp"),
-		}
-		c.AddTask(t)
 	}
 
 	if dns.IsGossipHostname(b.Cluster.Name) {

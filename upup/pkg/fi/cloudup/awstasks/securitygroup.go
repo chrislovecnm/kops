@@ -143,6 +143,10 @@ func (_ *SecurityGroup) ShouldCreate(a, e, changes *SecurityGroup) (bool, error)
 
 func (_ *SecurityGroup) CheckChanges(a, e, changes *SecurityGroup) error {
 	if a != nil {
+		shared := fi.BoolValue(a.Shared)
+		if shared {
+			return nil
+		}
 		if changes.ID != nil {
 			return fi.CannotChangeField("ID")
 		}
@@ -216,7 +220,7 @@ func (e *SecurityGroup) TerraformLink() *terraform.Literal {
 		if e.ID != nil {
 			return terraform.LiteralFromStringValue(*e.ID)
 		} else {
-			glog.Warningf("ID not set on shared subnet %v", e)
+			glog.Warningf("ID not set on shared security group %v", e)
 		}
 	}
 

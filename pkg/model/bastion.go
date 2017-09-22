@@ -17,6 +17,8 @@ limitations under the License.
 package model
 
 import (
+	"fmt"
+	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/upup/pkg/fi"
@@ -32,7 +34,6 @@ const BastionELBDefaultIdleTimeout = 5 * time.Minute
 // Bastion instances live in the utility subnets created in the private topology.
 // All traffic goes through an ELB, and the ELB has port 22 open to SSHAccess.
 // Bastion instances have access to all internal master and node instances.
-
 type BastionModelBuilder struct {
 	*KopsModelContext
 	Lifecycle *fi.Lifecycle
@@ -40,6 +41,7 @@ type BastionModelBuilder struct {
 
 var _ fi.ModelBuilder = &BastionModelBuilder{}
 
+// Build creates a ModelBuilderContext for a BastionModelBuilder
 func (b *BastionModelBuilder) Build(c *fi.ModelBuilderContext) error {
 	var bastionGroups []*kops.InstanceGroup
 	for _, ig := range b.InstanceGroups {
@@ -52,8 +54,19 @@ func (b *BastionModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		return nil
 	}
 
-	// Create security group for bastion instances
-	{
+	if b.Cluster.Spec.SecurityGroups != nil && b.Cluster.Spec.SecurityGroups.Bastion != nil {
+		glog.V(8).Infof("re-using security group: %s for bastion", *b.Cluster.Spec.SecurityGroups.Bastion)
+		// Reuse a security group for bastion instances
+		t := &awstasks.SecurityGroup{
+			ID:        b.Cluster.Spec.SecurityGroups.Bastion,
+			Lifecycle: b.Lifecycle,
+
+			VPC:    b.LinkToVPC(),
+			Shared: sb(true),
+		}
+		c.AddTask(t)
+	} else {
+		// Create security group for bastion instances
 		t := &awstasks.SecurityGroup{
 			Name:      s(b.SecurityGroupName(kops.InstanceGroupRoleBastion)),
 			Lifecycle: b.Lifecycle,
@@ -63,107 +76,107 @@ func (b *BastionModelBuilder) Build(c *fi.ModelBuilderContext) error {
 			RemoveExtraRules: []string{"port=22"},
 		}
 		c.AddTask(t)
-	}
 
-	// Allow traffic from bastion instances to egress freely
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:      s("bastion-egress"),
-			Lifecycle: b.Lifecycle,
+		// Allow traffic from bastion instances to egress freely
+		{
+			t := &awstasks.SecurityGroupRule{
+				Name:      s("bastion-egress"),
+				Lifecycle: b.Lifecycle,
 
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleBastion),
-			Egress:        fi.Bool(true),
-			CIDR:          s("0.0.0.0/0"),
-		}
-		c.AddTask(t)
-	}
-
-	// Allow incoming SSH traffic to bastions, through the ELB
-	// TODO: Could we get away without an ELB here?  Tricky to fix if dns-controller breaks though...
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:      s("ssh-elb-to-bastion"),
-			Lifecycle: b.Lifecycle,
-
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleBastion),
-			SourceGroup:   b.LinkToELBSecurityGroup(BastionELBSecurityGroupPrefix),
-			Protocol:      s("tcp"),
-			FromPort:      i64(22),
-			ToPort:        i64(22),
-		}
-		c.AddTask(t)
-	}
-
-	// Allow bastion nodes to SSH to masters
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:      s("bastion-to-master-ssh"),
-			Lifecycle: b.Lifecycle,
-
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
-			SourceGroup:   b.LinkToSecurityGroup(kops.InstanceGroupRoleBastion),
-			Protocol:      s("tcp"),
-			FromPort:      i64(22),
-			ToPort:        i64(22),
-		}
-		c.AddTask(t)
-	}
-
-	// Allow bastion nodes to SSH to nodes
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:      s("bastion-to-node-ssh"),
-			Lifecycle: b.Lifecycle,
-
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
-			SourceGroup:   b.LinkToSecurityGroup(kops.InstanceGroupRoleBastion),
-			Protocol:      s("tcp"),
-			FromPort:      i64(22),
-			ToPort:        i64(22),
-		}
-		c.AddTask(t)
-	}
-
-	// Create security group for bastion ELB
-	{
-		t := &awstasks.SecurityGroup{
-			Name:      s(b.ELBSecurityGroupName(BastionELBSecurityGroupPrefix)),
-			Lifecycle: b.Lifecycle,
-
-			VPC:              b.LinkToVPC(),
-			Description:      s("Security group for bastion ELB"),
-			RemoveExtraRules: []string{"port=22"},
-		}
-		c.AddTask(t)
-	}
-
-	// Allow traffic from ELB to egress freely
-	{
-		t := &awstasks.SecurityGroupRule{
-			Name:      s("bastion-elb-egress"),
-			Lifecycle: b.Lifecycle,
-
-			SecurityGroup: b.LinkToELBSecurityGroup(BastionELBSecurityGroupPrefix),
-			Egress:        fi.Bool(true),
-			CIDR:          s("0.0.0.0/0"),
+				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleBastion),
+				Egress:        fi.Bool(true),
+				CIDR:          s("0.0.0.0/0"),
+			}
+			c.AddTask(t)
 		}
 
-		c.AddTask(t)
-	}
+		// Allow incoming SSH traffic to bastions, through the ELB
+		// TODO: Could we get away without an ELB here?  Tricky to fix if dns-controller breaks though...
+		{
+			t := &awstasks.SecurityGroupRule{
+				Name:      s("ssh-elb-to-bastion"),
+				Lifecycle: b.Lifecycle,
 
-	// Allow external access to ELB
-	for _, sshAccess := range b.Cluster.Spec.SSHAccess {
-		t := &awstasks.SecurityGroupRule{
-			Name:      s("ssh-external-to-bastion-elb-" + sshAccess),
-			Lifecycle: b.Lifecycle,
-
-			SecurityGroup: b.LinkToELBSecurityGroup(BastionELBSecurityGroupPrefix),
-			Protocol:      s("tcp"),
-			FromPort:      i64(22),
-			ToPort:        i64(22),
-			CIDR:          s(sshAccess),
+				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleBastion),
+				SourceGroup:   b.LinkToELBSecurityGroup(BastionELBSecurityGroupPrefix),
+				Protocol:      s("tcp"),
+				FromPort:      i64(22),
+				ToPort:        i64(22),
+			}
+			c.AddTask(t)
 		}
-		c.AddTask(t)
+
+		// Allow bastion nodes to SSH to masters
+		{
+			t := &awstasks.SecurityGroupRule{
+				Name:      s("bastion-to-master-ssh"),
+				Lifecycle: b.Lifecycle,
+
+				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
+				SourceGroup:   b.LinkToSecurityGroup(kops.InstanceGroupRoleBastion),
+				Protocol:      s("tcp"),
+				FromPort:      i64(22),
+				ToPort:        i64(22),
+			}
+			c.AddTask(t)
+		}
+
+		// Allow bastion nodes to SSH to nodes
+		{
+			t := &awstasks.SecurityGroupRule{
+				Name:      s("bastion-to-node-ssh"),
+				Lifecycle: b.Lifecycle,
+
+				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
+				SourceGroup:   b.LinkToSecurityGroup(kops.InstanceGroupRoleBastion),
+				Protocol:      s("tcp"),
+				FromPort:      i64(22),
+				ToPort:        i64(22),
+			}
+			c.AddTask(t)
+		}
+
+		// Create security group for bastion ELB
+		{
+			t := &awstasks.SecurityGroup{
+				Name:      s(b.ELBSecurityGroupName(BastionELBSecurityGroupPrefix)),
+				Lifecycle: b.Lifecycle,
+
+				VPC:              b.LinkToVPC(),
+				Description:      s("Security group for bastion ELB"),
+				RemoveExtraRules: []string{"port=22"},
+			}
+			c.AddTask(t)
+		}
+
+		// Allow traffic from ELB to egress freely
+		{
+			t := &awstasks.SecurityGroupRule{
+				Name:      s("bastion-elb-egress"),
+				Lifecycle: b.Lifecycle,
+
+				SecurityGroup: b.LinkToELBSecurityGroup(BastionELBSecurityGroupPrefix),
+				Egress:        fi.Bool(true),
+				CIDR:          s("0.0.0.0/0"),
+			}
+
+			c.AddTask(t)
+		}
+
+		// Allow external access to ELB
+		for _, sshAccess := range b.Cluster.Spec.SSHAccess {
+			t := &awstasks.SecurityGroupRule{
+				Name:      s("ssh-external-to-bastion-elb-" + sshAccess),
+				Lifecycle: b.Lifecycle,
+
+				SecurityGroup: b.LinkToELBSecurityGroup(BastionELBSecurityGroupPrefix),
+				Protocol:      s("tcp"),
+				FromPort:      i64(22),
+				ToPort:        i64(22),
+				CIDR:          s(sshAccess),
+			}
+			c.AddTask(t)
+		}
 	}
 
 	var elbSubnets []*awstasks.Subnet
@@ -203,10 +216,7 @@ func (b *BastionModelBuilder) Build(c *fi.ModelBuilderContext) error {
 			Lifecycle: b.Lifecycle,
 
 			LoadBalancerName: s(loadBalancerName),
-			SecurityGroups: []*awstasks.SecurityGroup{
-				b.LinkToELBSecurityGroup(BastionELBSecurityGroupPrefix),
-			},
-			Subnets: elbSubnets,
+			Subnets:          elbSubnets,
 			Listeners: map[string]*awstasks.LoadBalancerListener{
 				"22": {InstancePort: 22},
 			},
@@ -223,7 +233,26 @@ func (b *BastionModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				IdleTimeout: i64(int64(idleTimeout.Seconds())),
 			},
 		}
-
+		if b.Cluster.Spec.SecurityGroups != nil && b.Cluster.Spec.SecurityGroups.BastionELB != nil {
+			glog.V(8).Infof("re-using security group: %s for bastion elb", *b.Cluster.Spec.SecurityGroups.BastionELB)
+			elb.SecurityGroups = []*awstasks.SecurityGroup{
+				{
+					ID:        b.Cluster.Spec.SecurityGroups.BastionELB,
+					Lifecycle: b.Lifecycle,
+					VPC:       b.LinkToVPC(),
+					Shared:    sb(true),
+				},
+			}
+		} else {
+			if b.Cluster.Spec.SecurityGroups != nil && b.Cluster.Spec.SecurityGroups.Bastion != nil {
+				// TODO not certain how to do this or if we can
+				return fmt.Errorf("In order to use a shared security group for the Bastion, you must provide a security group for the bastion elb")
+			} else {
+				elb.SecurityGroups = []*awstasks.SecurityGroup{
+					b.LinkToELBSecurityGroup(BastionELBSecurityGroupPrefix),
+				}
+			}
+		}
 		c.AddTask(elb)
 	}
 

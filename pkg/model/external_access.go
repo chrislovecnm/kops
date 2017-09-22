@@ -17,6 +17,7 @@ limitations under the License.
 package model
 
 import (
+	"fmt"
 	"github.com/golang/glog"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/upup/pkg/fi"
@@ -32,6 +33,7 @@ type ExternalAccessModelBuilder struct {
 
 var _ fi.ModelBuilder = &ExternalAccessModelBuilder{}
 
+// Build creates a ModelBuilderContext for a ExternalAccessModelBuilder
 func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 	if len(b.Cluster.Spec.KubernetesAPIAccess) == 0 {
 		glog.Warningf("KubernetesAPIAccess is empty")
@@ -39,6 +41,29 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 
 	if len(b.Cluster.Spec.SSHAccess) == 0 {
 		glog.Warningf("SSHAccess is empty")
+	}
+
+	createMasterSecGroup := true
+	createNodeSecGroup := true
+
+	if b.Cluster.Spec.SecurityGroups != nil {
+		// testing to see if we are reusing security groups
+		if b.Cluster.Spec.SecurityGroups.Master != nil {
+			createMasterSecGroup = false
+			glog.V(8).Infof("shared security group: %s for master found", *b.Cluster.Spec.SecurityGroups.Master)
+			fmt.Printf("shared security group: %s for master found", *b.Cluster.Spec.SecurityGroups.Master)
+		}
+
+		if b.Cluster.Spec.SecurityGroups.Node != nil {
+			createNodeSecGroup = false
+			glog.V(8).Infof("shared security group: %s for node(s) found", *b.Cluster.Spec.SecurityGroups.Node)
+			fmt.Printf("shared security group: %s for node found", *b.Cluster.Spec.SecurityGroups.Node)
+		}
+	}
+
+	if !createMasterSecGroup && !createNodeSecGroup {
+		glog.V(8).Infof("re-using shared security groups for master and nodes, no more setup required.")
+		return nil
 	}
 
 	// SSH is open to AdminCIDR set
@@ -49,55 +74,61 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		glog.V(2).Infof("bastion is in use; won't configure SSH access to master / node instances")
 	} else {
 		for _, sshAccess := range b.Cluster.Spec.SSHAccess {
-			c.AddTask(&awstasks.SecurityGroupRule{
-				Name:          s("ssh-external-to-master-" + sshAccess),
-				Lifecycle:     b.Lifecycle,
-				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
-				Protocol:      s("tcp"),
-				FromPort:      i64(22),
-				ToPort:        i64(22),
-				CIDR:          s(sshAccess),
-			})
+			if createMasterSecGroup {
+				c.AddTask(&awstasks.SecurityGroupRule{
+					Name:          s("ssh-external-to-master-" + sshAccess),
+					Lifecycle:     b.Lifecycle,
+					SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
+					Protocol:      s("tcp"),
+					FromPort:      i64(22),
+					ToPort:        i64(22),
+					CIDR:          s(sshAccess),
+				})
+			}
+
+			if createNodeSecGroup {
+				c.AddTask(&awstasks.SecurityGroupRule{
+					Name:          s("ssh-external-to-node-" + sshAccess),
+					Lifecycle:     b.Lifecycle,
+					SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
+					Protocol:      s("tcp"),
+					FromPort:      i64(22),
+					ToPort:        i64(22),
+					CIDR:          s(sshAccess),
+				})
+			}
+		}
+	}
+
+	if createNodeSecGroup {
+		for _, nodePortAccess := range b.Cluster.Spec.NodePortAccess {
+			nodePortRange, err := b.NodePortRange()
+			if err != nil {
+				return err
+			}
 
 			c.AddTask(&awstasks.SecurityGroupRule{
-				Name:          s("ssh-external-to-node-" + sshAccess),
+				Name:          s("nodeport-tcp-external-to-node-" + nodePortAccess),
 				Lifecycle:     b.Lifecycle,
 				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
 				Protocol:      s("tcp"),
-				FromPort:      i64(22),
-				ToPort:        i64(22),
-				CIDR:          s(sshAccess),
+				FromPort:      i64(int64(nodePortRange.Base)),
+				ToPort:        i64(int64(nodePortRange.Base + nodePortRange.Size - 1)),
+				CIDR:          s(nodePortAccess),
+			})
+			c.AddTask(&awstasks.SecurityGroupRule{
+				Name:          s("nodeport-udp-external-to-node-" + nodePortAccess),
+				Lifecycle:     b.Lifecycle,
+				SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
+				Protocol:      s("udp"),
+				FromPort:      i64(int64(nodePortRange.Base)),
+				ToPort:        i64(int64(nodePortRange.Base + nodePortRange.Size - 1)),
+				CIDR:          s(nodePortAccess),
 			})
 		}
 	}
 
-	for _, nodePortAccess := range b.Cluster.Spec.NodePortAccess {
-		nodePortRange, err := b.NodePortRange()
-		if err != nil {
-			return err
-		}
-
-		c.AddTask(&awstasks.SecurityGroupRule{
-			Name:          s("nodeport-tcp-external-to-node-" + nodePortAccess),
-			Lifecycle:     b.Lifecycle,
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
-			Protocol:      s("tcp"),
-			FromPort:      i64(int64(nodePortRange.Base)),
-			ToPort:        i64(int64(nodePortRange.Base + nodePortRange.Size - 1)),
-			CIDR:          s(nodePortAccess),
-		})
-		c.AddTask(&awstasks.SecurityGroupRule{
-			Name:          s("nodeport-udp-external-to-node-" + nodePortAccess),
-			Lifecycle:     b.Lifecycle,
-			SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
-			Protocol:      s("udp"),
-			FromPort:      i64(int64(nodePortRange.Base)),
-			ToPort:        i64(int64(nodePortRange.Base + nodePortRange.Size - 1)),
-			CIDR:          s(nodePortAccess),
-		})
-	}
-
-	if !b.UseLoadBalancerForAPI() {
+	if createMasterSecGroup && !b.UseLoadBalancerForAPI() {
 		// Configuration for the master, when not using a Loadbalancer (ELB)
 		// We expect that either the IP address is published, or DNS is set up to point to the IPs
 		// We need to open security groups directly to the master nodes (instead of via the ELB)
