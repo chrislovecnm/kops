@@ -62,7 +62,7 @@ func (a OrderSecurityGroupsById) Less(i, j int) bool {
 }
 
 func (e *SecurityGroup) Find(c *fi.Context) (*SecurityGroup, error) {
-	sg, err := e.findEc2(c)
+	sg, err := e.FindEc2(c.Cloud)
 	if err != nil {
 		return nil, err
 	}
@@ -91,21 +91,31 @@ func (e *SecurityGroup) Find(c *fi.Context) (*SecurityGroup, error) {
 	return actual, nil
 }
 
-func (e *SecurityGroup) findEc2(c *fi.Context) (*ec2.SecurityGroup, error) {
-	cloud := c.Cloud.(awsup.AWSCloud)
+func (e *SecurityGroup) FindEc2(c fi.Cloud) (*ec2.SecurityGroup, error) {
+	cloud := c.(awsup.AWSCloud)
 
 	var vpcID *string
 	if e.VPC != nil {
 		vpcID = e.VPC.ID
 	}
 
+	shared := fi.BoolValue(e.Shared)
+	id := fi.StringValue(e.ID)
+
+	if shared && id == "" {
+		return nil, fmt.Errorf("unable to find shared security group as id is not set")
+	}
+
 	if vpcID == nil {
+		if shared {
+			return nil, fmt.Errorf("unable to find shared security group: %q as vpc id is not set", id)
+		}
 		return nil, nil
 	}
 
 	request := &ec2.DescribeSecurityGroupsInput{}
 
-	if fi.StringValue(e.ID) != "" {
+	if id != "" {
 		request.GroupIds = []*string{e.ID}
 	} else {
 		filters := cloud.BuildFilters(e.Name)
@@ -120,6 +130,7 @@ func (e *SecurityGroup) findEc2(c *fi.Context) (*ec2.SecurityGroup, error) {
 		return nil, fmt.Errorf("error listing SecurityGroups: %v", err)
 	}
 	if response == nil || len(response.SecurityGroups) == 0 {
+		glog.V(8).Infof("no security groups found %+v", e)
 		return nil, nil
 	}
 
@@ -385,7 +396,7 @@ func (e *SecurityGroup) FindDeletions(c *fi.Context) ([]fi.Deletion, error) {
 		rules = append(rules, rule)
 	}
 
-	sg, err := e.findEc2(c)
+	sg, err := e.FindEc2(c.Cloud)
 	if err != nil {
 		return nil, err
 	}

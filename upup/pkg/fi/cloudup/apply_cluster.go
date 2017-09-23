@@ -521,11 +521,11 @@ func (c *ApplyClusterCmd) Run() error {
 
 				l.Builders = append(l.Builders,
 					&model.MasterVolumeBuilder{KopsModelContext: modelContext, Lifecycle: clusterLifecycle},
-					&awsmodel.APILoadBalancerBuilder{AWSModelContext: awsModelContext, Lifecycle: networkLifecycle},
-					&model.BastionModelBuilder{KopsModelContext: modelContext, Lifecycle: networkLifecycle},
+					&awsmodel.APILoadBalancerBuilder{AWSModelContext: awsModelContext, Lifecycle: networkLifecycle, Cloud: cloud},
+					&model.BastionModelBuilder{KopsModelContext: modelContext, Lifecycle: networkLifecycle, Cloud: cloud},
 					&model.DNSModelBuilder{KopsModelContext: modelContext, Lifecycle: networkLifecycle},
 					&model.ExternalAccessModelBuilder{KopsModelContext: modelContext, Lifecycle: clusterLifecycle},
-					&model.FirewallModelBuilder{KopsModelContext: modelContext, Lifecycle: clusterLifecycle},
+					&model.FirewallModelBuilder{KopsModelContext: modelContext, Lifecycle: clusterLifecycle, Cloud: cloud},
 					&model.SSHKeyModelBuilder{KopsModelContext: modelContext, Lifecycle: iamLifecycle},
 				)
 

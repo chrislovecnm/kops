@@ -36,6 +36,7 @@ const LoadBalancerDefaultIdleTimeout = 5 * time.Minute
 type APILoadBalancerBuilder struct {
 	*AWSModelContext
 	Lifecycle *fi.Lifecycle
+	Cloud     fi.Cloud
 }
 
 var _ fi.ModelBuilder = &APILoadBalancerBuilder{}
@@ -96,7 +97,7 @@ func (b *APILoadBalancerBuilder) Build(c *fi.ModelBuilderContext) error {
 	createSecurityGroup := true
 	if b.Cluster.Spec.SecurityGroups != nil {
 		if b.Cluster.Spec.SecurityGroups.ApiELB != nil {
-			glog.V(8).Infof("re-using security group: %s for api elb", b.Cluster.Spec.SecurityGroups.ApiELB)
+			glog.V(8).Infof("re-using security group: %s for api elb", *b.Cluster.Spec.SecurityGroups.ApiELB)
 			createSecurityGroup = false
 		}
 	}
@@ -140,14 +141,21 @@ func (b *APILoadBalancerBuilder) Build(c *fi.ModelBuilderContext) error {
 			}
 
 		} else {
-			elb.SecurityGroups = []*awstasks.SecurityGroup{
-				{
-					ID:        b.Cluster.Spec.SecurityGroups.ApiELB,
-					Lifecycle: b.Lifecycle,
-					Shared:    sb(true),
-					VPC:       b.LinkToVPC(),
-				},
+			t := &awstasks.SecurityGroup{
+				ID:        b.Cluster.Spec.SecurityGroups.ApiELB,
+				Lifecycle: b.Lifecycle,
+				Shared:    sb(true),
+				VPC:       &awstasks.VPC{ID: s(b.Cluster.Spec.NetworkID)},
 			}
+
+			// have to get name of the security group and validate that it exists
+			secGroup, err := t.FindEc2(b.Cloud)
+			if err != nil {
+				return fmt.Errorf("unable to find security group for api loadbalancer %q: %v", *t.ID, err)
+			}
+
+			t.Name = secGroup.GroupName
+			c.AddTask(t)
 		}
 
 		switch lbSpec.Type {

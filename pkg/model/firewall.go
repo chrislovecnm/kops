@@ -37,6 +37,7 @@ const (
 type FirewallModelBuilder struct {
 	*KopsModelContext
 	Lifecycle *fi.Lifecycle
+	Cloud     fi.Cloud
 }
 
 var _ fi.ModelBuilder = &FirewallModelBuilder{}
@@ -57,7 +58,6 @@ func (b *FirewallModelBuilder) buildNodeRules(c *fi.ModelBuilderContext) error {
 	if b.Cluster.Spec.SecurityGroups != nil {
 		if b.Cluster.Spec.SecurityGroups.Node != nil {
 			createSecurityGroup = false
-			glog.V(8).Infof("shared security group: %s for node found", *b.Cluster.Spec.SecurityGroups.Node)
 		}
 	}
 
@@ -109,12 +109,21 @@ func (b *FirewallModelBuilder) buildNodeRules(c *fi.ModelBuilderContext) error {
 
 	// re-using provided security group for the node
 	glog.V(8).Infof("shared security group: %s for node found", *b.Cluster.Spec.SecurityGroups.Node)
+
 	t := &awstasks.SecurityGroup{
 		ID:        b.Cluster.Spec.SecurityGroups.Node,
 		Lifecycle: b.Lifecycle,
-		VPC:       b.LinkToVPC(),
+		VPC:       &awstasks.VPC{ID: s(b.Cluster.Spec.NetworkID)},
 		Shared:    sb(true),
 	}
+
+	secGroup, err := t.FindEc2(b.Cloud)
+	if err != nil {
+		return fmt.Errorf("unable to find node security group %q: %v", t.ID, err)
+	}
+
+	t.Name = secGroup.GroupName
+
 	c.AddTask(t)
 
 	return nil
@@ -365,9 +374,16 @@ func (b *FirewallModelBuilder) buildMasterRules(c *fi.ModelBuilderContext) error
 	t := &awstasks.SecurityGroup{
 		ID:        b.Cluster.Spec.SecurityGroups.Master,
 		Lifecycle: b.Lifecycle,
-		VPC:       b.LinkToVPC(),
+		VPC:       &awstasks.VPC{ID: s(b.Cluster.Spec.NetworkID)},
 		Shared:    sb(true),
 	}
+
+	secGroup, err := t.FindEc2(b.Cloud)
+	if err != nil {
+		return fmt.Errorf("unable to find master security group %q: %v", t.ID, err)
+	}
+
+	t.Name = secGroup.GroupName
 	c.AddTask(t)
 	return nil
 }

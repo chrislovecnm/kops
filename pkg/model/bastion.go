@@ -37,6 +37,7 @@ const BastionELBDefaultIdleTimeout = 5 * time.Minute
 type BastionModelBuilder struct {
 	*KopsModelContext
 	Lifecycle *fi.Lifecycle
+	Cloud     fi.Cloud
 }
 
 var _ fi.ModelBuilder = &BastionModelBuilder{}
@@ -54,29 +55,14 @@ func (b *BastionModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		return nil
 	}
 
-	if b.Cluster.Spec.SecurityGroups != nil && b.Cluster.Spec.SecurityGroups.Bastion != nil {
-		glog.V(8).Infof("re-using security group: %s for bastion", *b.Cluster.Spec.SecurityGroups.Bastion)
-		// Reuse a security group for bastion instances
-		t := &awstasks.SecurityGroup{
-			ID:        b.Cluster.Spec.SecurityGroups.Bastion,
-			Lifecycle: b.Lifecycle,
-
-			VPC:    b.LinkToVPC(),
-			Shared: sb(true),
+	createSecurityGroup := true
+	if b.Cluster.Spec.SecurityGroups != nil {
+		if b.Cluster.Spec.SecurityGroups.Bastion != nil {
+			createSecurityGroup = false
 		}
-		c.AddTask(t)
-	} else {
-		// Create security group for bastion instances
-		t := &awstasks.SecurityGroup{
-			Name:      s(b.SecurityGroupName(kops.InstanceGroupRoleBastion)),
-			Lifecycle: b.Lifecycle,
+	}
 
-			VPC:              b.LinkToVPC(),
-			Description:      s("Security group for bastion"),
-			RemoveExtraRules: []string{"port=22"},
-		}
-		c.AddTask(t)
-
+	if createSecurityGroup {
 		// Allow traffic from bastion instances to egress freely
 		{
 			t := &awstasks.SecurityGroupRule{
@@ -177,6 +163,24 @@ func (b *BastionModelBuilder) Build(c *fi.ModelBuilderContext) error {
 			}
 			c.AddTask(t)
 		}
+	} else {
+		glog.V(8).Infof("re-using security group: %s for bastion", *b.Cluster.Spec.SecurityGroups.Bastion)
+		// Reuse a security group for bastion instances
+		t := &awstasks.SecurityGroup{
+			ID:        b.Cluster.Spec.SecurityGroups.Bastion,
+			Shared:    sb(true),
+			Lifecycle: b.Lifecycle,
+			VPC:       &awstasks.VPC{ID: s(b.Cluster.Spec.NetworkID)},
+		}
+
+		// have to get name of the security group and validate that it exists
+		secGroup, err := t.FindEc2(b.Cloud)
+		if err != nil {
+			return fmt.Errorf("unable to find security group for bastion %q: %v", *t.ID, err)
+		}
+
+		t.Name = secGroup.GroupName
+		c.AddTask(t)
 	}
 
 	var elbSubnets []*awstasks.Subnet
@@ -233,25 +237,37 @@ func (b *BastionModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				IdleTimeout: i64(int64(idleTimeout.Seconds())),
 			},
 		}
-		if b.Cluster.Spec.SecurityGroups != nil && b.Cluster.Spec.SecurityGroups.BastionELB != nil {
-			glog.V(8).Infof("re-using security group: %s for bastion elb", *b.Cluster.Spec.SecurityGroups.BastionELB)
-			elb.SecurityGroups = []*awstasks.SecurityGroup{
-				{
-					ID:        b.Cluster.Spec.SecurityGroups.BastionELB,
-					Lifecycle: b.Lifecycle,
-					VPC:       b.LinkToVPC(),
-					Shared:    sb(true),
-				},
+		createBastionELBSecGroup := true
+		if b.Cluster.Spec.SecurityGroups != nil {
+			if b.Cluster.Spec.SecurityGroups.BastionELB != nil {
+				createBastionELBSecGroup = false
 			}
-		} else {
-			if b.Cluster.Spec.SecurityGroups != nil && b.Cluster.Spec.SecurityGroups.Bastion != nil {
+		}
+
+		if createBastionELBSecGroup {
+			if !createSecurityGroup {
 				// TODO not certain how to do this or if we can
 				return fmt.Errorf("In order to use a shared security group for the Bastion, you must provide a security group for the bastion elb")
-			} else {
-				elb.SecurityGroups = []*awstasks.SecurityGroup{
-					b.LinkToELBSecurityGroup(BastionELBSecurityGroupPrefix),
-				}
 			}
+			elb.SecurityGroups = []*awstasks.SecurityGroup{
+				b.LinkToELBSecurityGroup(BastionELBSecurityGroupPrefix),
+			}
+		} else {
+			glog.V(8).Infof("re-using security group: %s for bastion elb", *b.Cluster.Spec.SecurityGroups.BastionELB)
+
+			t := &awstasks.SecurityGroup{
+				ID:        b.Cluster.Spec.SecurityGroups.BastionELB,
+				Lifecycle: b.Lifecycle,
+				VPC:       &awstasks.VPC{ID: s(b.Cluster.Spec.NetworkID)},
+				Shared:    sb(true),
+			}
+
+			secGroup, err := t.FindEc2(b.Cloud)
+			if err != nil {
+				return fmt.Errorf("unable to find provided security group for bastion elb %q: %v", *t.ID, err)
+			}
+			t.Name = secGroup.GroupName
+			c.AddTask(t)
 		}
 		c.AddTask(elb)
 	}
