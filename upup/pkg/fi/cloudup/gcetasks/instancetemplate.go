@@ -49,6 +49,7 @@ type InstanceTemplate struct {
 	BootDiskType   *string
 
 	CanIPForward *bool
+	HasPublicIP  *bool
 	Subnet       *Subnet
 
 	Scopes []string
@@ -94,6 +95,10 @@ func (e *InstanceTemplate) Find(c *fi.Context) (*InstanceTemplate, error) {
 		actual := &InstanceTemplate{}
 
 		p := r.Properties
+
+		if p.Tags == nil {
+			return nil, fmt.Errorf("unable to get tags for instancetemplate %q", r.Name)
+		}
 
 		for _, tag := range p.Tags.Items {
 			actual.Tags = append(actual.Tags, tag)
@@ -229,14 +234,18 @@ func (e *InstanceTemplate) mapToGCE(project string) (*compute.InstanceTemplate, 
 	}
 
 	var networkInterfaces []*compute.NetworkInterface
+
 	ni := &compute.NetworkInterface{
-		Kind: "compute#networkInterface",
-		AccessConfigs: []*compute.AccessConfig{{
-			Kind: "compute#accessConfig",
-			//NatIP: *e.IPAddress.Address,
-			Type: "ONE_TO_ONE_NAT",
-		}},
+		Kind:    "compute#networkInterface",
 		Network: e.Network.URL(project),
+	}
+	if fi.BoolValue(e.HasPublicIP) {
+		ni.AccessConfigs =
+			[]*compute.AccessConfig{{
+				Kind: "compute#accessConfig",
+				//NatIP: *e.IPAddress.Address,
+				Type: "ONE_TO_ONE_NAT",
+			}}
 	}
 	if e.Subnet != nil {
 		ni.Subnetwork = *e.Subnet.Name
@@ -259,6 +268,11 @@ func (e *InstanceTemplate) mapToGCE(project string) (*compute.InstanceTemplate, 
 
 	var metadataItems []*compute.MetadataItems
 	for key, r := range e.Metadata {
+		// bad hack because we do not have startup scripts for bastions
+		// TODO where the heck are we getting it?
+		if r == nil {
+			continue
+		}
 		v, err := r.AsString()
 		if err != nil {
 			return nil, fmt.Errorf("error rendering InstanceTemplate metadata %q: %v", key, err)

@@ -807,17 +807,32 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 			cluster.Spec.Subnets[i].Type = api.SubnetTypePrivate
 		}
 
+		subnetNames := sets.NewString()
 		var utilitySubnets []api.ClusterSubnetSpec
 		for _, s := range cluster.Spec.Subnets {
 			if s.Type == api.SubnetTypeUtility {
 				continue
 			}
-			subnet := api.ClusterSubnetSpec{
-				Name: "utility-" + s.Name,
-				Zone: s.Zone,
+			name := "utility-" + s.Name
+			zones := c.MasterZones
+			if len(zones) == 0 {
+				zones = c.Zones
+			}
+
+			if len(zones) == 0 {
+				return fmt.Errorf("cannot determine bastion zones")
+			}
+
+			// FIXME - this is a crazy hack just picking
+			// FIXME - the first zone.  How can we do this better?
+			subnet := zoneToSubnetMap[zones[0]]
+			subnetNames.Insert(name)
+			subnetUtil := api.ClusterSubnetSpec{
+				Name: name,
+				Zone: subnet.Zone,
 				Type: api.SubnetTypeUtility,
 			}
-			utilitySubnets = append(utilitySubnets, subnet)
+			utilitySubnets = append(utilitySubnets, subnetUtil)
 		}
 		cluster.Spec.Subnets = append(cluster.Spec.Subnets, utilitySubnets...)
 
@@ -826,6 +841,11 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 			bastionGroup.Spec.Role = api.InstanceGroupRoleBastion
 			bastionGroup.ObjectMeta.Name = "bastions"
 			bastionGroup.Spec.Image = c.Image
+			bastionGroup.Spec.Subnets = subnetNames.List()
+
+			if api.CloudProviderID(cluster.Spec.CloudProvider) == api.CloudProviderGCE {
+				bastionGroup.Spec.Zones = c.Zones
+			}
 			instanceGroups = append(instanceGroups, bastionGroup)
 
 			cluster.Spec.Topology.Bastion = &api.BastionSpec{

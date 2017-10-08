@@ -23,6 +23,7 @@ import (
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gcetasks"
+	"github.com/golang/glog"
 )
 
 const (
@@ -63,6 +64,28 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				volumeType = DefaultVolumeType
 			}
 
+			// if the ig as associated set we override topology
+			hasPublicIP := ig.Spec.AssociatePublicIP
+			if hasPublicIP == nil {
+				// default is public
+				hasPublicIP = fi.Bool(true)
+				topo := b.Cluster.Spec.Topology
+				switch ig.Spec.Role {
+				case kops.InstanceGroupRoleMaster:
+					if topo.Masters == kops.TopologyPrivate {
+						hasPublicIP = fi.Bool(false)
+					}
+				case kops.InstanceGroupRoleNode:
+					if topo.Nodes == kops.TopologyPrivate {
+						hasPublicIP = fi.Bool(false)
+					}
+				case kops.InstanceGroupRoleBastion:
+					hasPublicIP = fi.Bool(true)
+				default:
+					glog.Errorf("instance group role not found")
+				}
+			}
+
 			t := &gcetasks.InstanceTemplate{
 				Name:           s(name),
 				Lifecycle:      b.Lifecycle,
@@ -73,6 +96,7 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				BootDiskImage:  s(ig.Spec.Image),
 
 				CanIPForward: fi.Bool(true),
+				HasPublicIP: hasPublicIP,
 
 				// TODO: Support preemptible nodes?
 				Preemptible: fi.Bool(false),
