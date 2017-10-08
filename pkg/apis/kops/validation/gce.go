@@ -46,5 +46,19 @@ func gceValidateCluster(c *kops.Cluster) field.ErrorList {
 		allErrs = append(allErrs, field.Invalid(fieldSpec.Child("Subnets"), strings.Join(regions.List(), ","), "clusters cannot span GCE regions"))
 	}
 
+	if c.Spec.Topology != nil {
+		f := fieldSpec.Child("Topology").Index(i)
+		if c.Spec.Topology.Masters != string(kops.DNSTypePublic) {
+			allErrs = append(allErrs, field.Required(f.Child("Master"), "only public topology is supported for GCE currently"))
+		}
+		if c.Spec.Topology.Nodes != string(kops.DNSTypePublic) {
+			allErrs = append(allErrs, field.Required(f.Child("Nodes"), "only public topology is supported for GCE currently"))
+		}
+
+		if c.Spec.Topology.Bastion != nil {
+			allErrs = append(allErrs, field.Required(f.Child("Bastion"), "bastions are not supported for GCE currently"))
+		}
+	}
+
 	return nil
 }
