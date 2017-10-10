@@ -21,11 +21,10 @@ limitations under the License.
 package v1alpha2
 
 import (
-	reflect "reflect"
-
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	reflect "reflect"
 )
 
 func init() {
@@ -1835,6 +1834,15 @@ func (in *InstanceGroupSpec) DeepCopyInto(out *InstanceGroupSpec) {
 		*out = make([]UserData, len(*in))
 		copy(*out, *in)
 	}
+	if in.SecurityGroup != nil {
+		in, out := &in.SecurityGroup, &out.SecurityGroup
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(string)
+			**out = **in
+		}
+	}
 	return
 }
 
@@ -2651,6 +2659,15 @@ func (in *KubeletConfigSpec) DeepCopyInto(out *KubeletConfigSpec) {
 			**out = **in
 		}
 	}
+	if in.ImagePullProgressDeadline != nil {
+		in, out := &in.ImagePullProgressDeadline, &out.ImagePullProgressDeadline
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(v1.Duration)
+			**out = **in
+		}
+	}
 	if in.EvictionHard != nil {
 		in, out := &in.EvictionHard, &out.EvictionHard
 		if *in == nil {
@@ -2799,6 +2816,15 @@ func (in *LoadBalancerAccessSpec) DeepCopyInto(out *LoadBalancerAccessSpec) {
 		in, out := &in.AdditionalSecurityGroups, &out.AdditionalSecurityGroups
 		*out = make([]string, len(*in))
 		copy(*out, *in)
+	}
+	if in.SecurityGroup != nil {
+		in, out := &in.SecurityGroup, &out.SecurityGroup
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(string)
+			**out = **in
+		}
 	}
 	return
 }
