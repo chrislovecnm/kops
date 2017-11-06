@@ -4,5 +4,12 @@ http_archive(
     sha256 = "91fca9cf860a1476abdc185a5f675b641b60d3acf0596679a27b580af60bf19c",
 )
 load("@io_bazel_rules_go//go:def.bzl", "go_rules_dependencies", "go_register_toolchains")
+load("@io_bazel_rules_go//proto:def.bzl", "proto_register_toolchains")
+
 go_rules_dependencies()
 go_register_toolchains()
+proto_register_toolchains()
+
+# Needed for tests
+load("@io_bazel_rules_go//tests:bazel_tests.bzl", "test_environment")
+test_environment()

@@ -8,6 +8,7 @@ go_library(
         "gossip.go",
         "peer.go",
         "state.go",
+        "mesh.pg.go",
     ],
     importpath = "k8s.io/kops/protokube/pkg/gossip/mesh",
     library = ":mesh_go_proto",
@@ -24,7 +25,7 @@ proto_library(
     name = "mesh_proto",
     srcs = ["mesh.proto"],
     visibility = ["//visibility:public"],
-    deps = ["//github.com/gogo/protobuf/gogoproto:gogoproto_proto"],
+    deps = ["//vendor/github.com/gogo/protobuf/gogoproto:gogoproto_proto"],
 )
 
 go_proto_library(
@@ -32,5 +33,5 @@ go_proto_library(
     importpath = "k8s.io/kops/protokube/pkg/gossip/mesh",
     proto = ":mesh_proto",
     visibility = ["//visibility:public"],
-    deps = ["//github.com/gogo/protobuf/gogoproto:go_default_library"],
+    deps = ["//vendor/github.com/gogo/protobuf/gogoproto:gogoproto_proto"],
 )
