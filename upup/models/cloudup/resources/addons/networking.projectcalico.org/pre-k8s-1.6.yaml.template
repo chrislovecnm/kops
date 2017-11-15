@@ -69,7 +69,7 @@ spec:
         # container programs network policy and routes on each
         # host.
         - name: calico-node
-          image: quay.io/calico/node:v2.4.0
+          image: quay.io/calico/node:v2.6.2
           resources:
             requests:
               cpu: 10m
@@ -100,6 +100,14 @@ spec:
             # Auto-detect the BGP IP address.
             - name: IP
               value: ""
+            # Disable IPv6 on Kubernetes.
+            - name: FELIX_IPV6SUPPORT
+              value: "false"
+            # Set Felix logging to "info"
+            - name: FELIX_LOGSEVERITYSCREEN
+              value: "info"
+            - name: FELIX_HEALTHENABLED
+              value: "true"
           securityContext:
             privileged: true
           volumeMounts:
@@ -109,16 +117,23 @@ spec:
             - mountPath: /var/run/calico
               name: var-run-calico
               readOnly: false
+            # Necessary for gossip based DNS
+            - mountPath: /etc/hosts
+              name: etc-hosts
+              readOnly: true
         # This container installs the Calico CNI binaries
         # and CNI network config file on each node.
         - name: install-cni
-          image: quay.io/calico/cni:v1.10.0
+          image: quay.io/calico/cni:v1.11.0
           resources:
             requests:
               cpu: 10m
           imagePullPolicy: Always
           command: ["/install-cni.sh"]
           env:
+            # The name of calico config file
+            - name: CNI_CONF_NAME
+              value: 10-calico.conflist
             # The location of the Calico etcd cluster.
             - name: ETCD_ENDPOINTS
               valueFrom:
@@ -136,6 +151,10 @@ spec:
               name: cni-bin-dir
             - mountPath: /host/etc/cni/net.d
               name: cni-net-dir
+            # Necessary for gossip based DNS
+            - mountPath: /etc/hosts
+              name: etc-hosts
+              readOnly: true
       volumes:
         # Used by calico/node.
         - name: lib-modules
@@ -151,6 +170,9 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/cni/net.d
+        - name: etc-hosts
+          hostPath:
+            path: /etc/hosts
 
 ---
 
@@ -159,20 +181,20 @@ spec:
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: calico-policy-controller
+  name: calico-kube-controllers
   namespace: kube-system
   labels:
-    k8s-app: calico-policy
+    k8s-app: calico-kube-controllers
     role.kubernetes.io/networking: "1"
 spec:
-  # The policy controller can only have a single active instance.
+  # The controllers can only have a single active instance.
   replicas: 1
   template:
     metadata:
-      name: calico-policy-controller
+      name: calico-kube-controllers
       namespace: kube-system
       labels:
-        k8s-app: calico-policy-controller
+        k8s-app: calico-kube-controllers
         role.kubernetes.io/networking: "1"
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
@@ -180,12 +202,12 @@ spec:
           [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
            {"key":"CriticalAddonsOnly", "operator":"Exists"}]
     spec:
-      # The policy controller must run in the host network namespace so that
+      # The controllers must run in the host network namespace so that
       # it isn't governed by policy that would prevent it from working.
       hostNetwork: true
       containers:
-        - name: calico-policy-controller
-          image: quay.io/calico/kube-policy-controller:v0.7.0
+        - name: calico-kube-controllers
+          image: quay.io/calico/kube-controllers:v1.0.0
           resources:
             requests:
               cpu: 10m
@@ -205,6 +227,52 @@ spec:
             # kubernetes.default to the correct service clusterIP.
             - name: CONFIGURE_ETC_HOSTS
               value: "true"
+---
+
+# This deployment turns off the old "policy-controller". It should remain at 0 replicas, and then
+# be removed entirely once the new kube-controllers deployment has been deployed above.
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: calico-policy-controller
+  namespace: kube-system
+  labels:
+    k8s-app: calico-policy
+spec:
+  # Turn this deployment off in favor of the kube-controllers deployment above.
+  replicas: 0
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      name: calico-policy-controller
+      namespace: kube-system
+      labels:
+        k8s-app: calico-policy
+    spec:
+      hostNetwork: true
+      serviceAccountName: calico
+      containers:
+        - name: calico-policy-controller
+          image: quay.io/calico/kube-controllers:v1.0.0
+          env:
+            # The location of the Calico etcd cluster.
+            - name: ETCD_ENDPOINTS
+              valueFrom:
+                configMapKeyRef:
+                  name: calico-config
+                  key: etcd_endpoints
+
+          volumeMounts:
+            # Necessary for gossip based DNS
+            - mountPath: /etc/hosts
+              name: etc-hosts
+              readOnly: true
+      volumes:
+        - name: etc-hosts
+          hostPath:
+            path: /etc/hosts
+
 
 {{ if and (eq .CloudProvider "aws") (.Networking.Calico.CrossSubnet) -}}
 ---
