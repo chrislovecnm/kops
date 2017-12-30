@@ -232,6 +232,12 @@ func (e *SecurityGroupRule) Description() string {
 }
 
 func (_ *SecurityGroupRule) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *SecurityGroupRule) error {
+	shared := fi.BoolValue(e.Shared)
+	if shared {
+		// Do we want to do any verification of the security group?
+		return nil
+	}
+
 	name := fi.StringValue(e.Name)
 
 	if a == nil {
@@ -306,6 +312,12 @@ type terraformSecurityGroupIngress struct {
 }
 
 func (_ *SecurityGroupRule) RenderTerraform(t *terraform.TerraformTarget, a, e, changes *SecurityGroupRule) error {
+	shared := fi.BoolValue(e.Shared)
+	if shared {
+		// Not terraform owned / managed
+		return nil
+	}
+
 	tf := &terraformSecurityGroupIngress{
 		Type:          fi.String("ingress"),
 		SecurityGroup: e.SecurityGroup.TerraformLink(),
@@ -354,6 +366,12 @@ type cloudformationSecurityGroupIngress struct {
 }
 
 func (_ *SecurityGroupRule) RenderCloudformation(t *cloudformation.CloudformationTarget, a, e, changes *SecurityGroupRule) error {
+	shared := fi.BoolValue(e.Shared)
+	if shared {
+		// Not terraform owned / managed
+		return nil
+	}
+
 	cfType := "AWS::EC2::SecurityGroupIngress"
 	if fi.BoolValue(e.Egress) {
 		cfType = "AWS::EC2::SecurityGroupEgress"

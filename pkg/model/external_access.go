@@ -72,6 +72,7 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 					FromPort:      i64(22),
 					ToPort:        i64(22),
 					CIDR:          s(sshAccess),
+					Shared:        getSharedSecGroup(masterGroup),
 				})
 			}
 
@@ -85,6 +86,7 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 					FromPort:      i64(22),
 					ToPort:        i64(22),
 					CIDR:          s(sshAccess),
+					Shared:        getSharedSecGroup(nodeGroup),
 				})
 			}
 		}
@@ -105,6 +107,7 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				FromPort:      i64(int64(nodePortRange.Base)),
 				ToPort:        i64(int64(nodePortRange.Base + nodePortRange.Size - 1)),
 				CIDR:          s(nodePortAccess),
+				Shared:        getSharedSecGroup(nodeGroup),
 			})
 			c.AddTask(&awstasks.SecurityGroupRule{
 				Name:          s(fmt.Sprintf("nodeport-udp-external-to-node-%s%s", nodePortAccess, suffix)),
@@ -114,6 +117,7 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				FromPort:      i64(int64(nodePortRange.Base)),
 				ToPort:        i64(int64(nodePortRange.Base + nodePortRange.Size - 1)),
 				CIDR:          s(nodePortAccess),
+				Shared:        getSharedSecGroup(nodeGroup),
 			})
 		}
 	}
@@ -135,6 +139,7 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 					FromPort:      i64(443),
 					ToPort:        i64(443),
 					CIDR:          s(apiAccess),
+					Shared:        getSharedSecGroup(masterGroup),
 				}
 				c.AddTask(t)
 			}

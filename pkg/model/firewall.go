@@ -56,7 +56,6 @@ func (b *FirewallModelBuilder) Build(c *fi.ModelBuilderContext) error {
 	// * It causes e2e tests to break
 	// * Users expect to be able to reach pods
 	// * If users are running an overlay, we punch a hole in it anyway
-	// re-using provided security group for the node
 	b.applyNodeToMasterBlockSpecificPorts(c, nodeGroups, masterGroups)
 
 	return nil
@@ -79,6 +78,7 @@ func (b *FirewallModelBuilder) buildNodeRules(c *fi.ModelBuilderContext) (map[st
 				SecurityGroup: secGroup,
 				Egress:        fi.Bool(true),
 				CIDR:          s("0.0.0.0/0"),
+				Shared:        getSharedSecGroup(secGroup),
 			}
 			c.AddTask(t)
 		}
@@ -90,26 +90,24 @@ func (b *FirewallModelBuilder) buildNodeRules(c *fi.ModelBuilderContext) (map[st
 				Lifecycle:     b.Lifecycle,
 				SecurityGroup: secGroup,
 				SourceGroup:   secGroup,
+				Shared:        getSharedSecGroup(secGroup),
 			}
 			c.AddTask(t)
 		}
 
-		// Pods running in Nodes could need to reach pods in master/s
-		if b.Cluster.Spec.Networking != nil && b.Cluster.Spec.Networking.AmazonVPC != nil {
-			// Nodes can talk to masters
-			{
-				t := &awstasks.SecurityGroupRule{
-					Name:          s(fmt.Sprintf("all-nodes-to-master%s", suffix)),
-					Lifecycle:     b.Lifecycle,
-					SecurityGroup: b.LinkToSecurityGroup(kops.InstanceGroupRoleMaster),
-					SourceGroup:   b.LinkToSecurityGroup(kops.InstanceGroupRoleNode),
-				}
-				c.AddTask(t)
-			}
-		}
 	}
 
 	return nodeGroups, nil
+}
+
+func getSharedSecGroup(e *awstasks.SecurityGroup) *bool {
+	shared := fi.BoolValue(e.Shared)
+	if shared {
+		// Do we want to do any verification of the security group?
+		return fi.Bool(true)
+	}
+
+	return fi.Bool(false)
 }
 
 func (b *FirewallModelBuilder) applyNodeToMasterAllowSpecificPorts(c *fi.ModelBuilderContext) {
@@ -285,7 +283,7 @@ func (b *FirewallModelBuilder) applyNodeToMasterBlockSpecificPorts(c *fi.ModelBu
 			if len(masterGroups) == 1 && len(nodeGroups) == 1 {
 				nodeSecGroupName = ""
 			} else {
-				nodeSecGroupName = fmt.Sprintf("-%s-%s", masterSecGroupName, nodeSecGroupName)
+				nodeSecGroupName = fmt.Sprintf("%s-%s", masterSecGroupName, nodeSecGroupName)
 			}
 
 			for _, r := range udpRanges {
@@ -297,6 +295,7 @@ func (b *FirewallModelBuilder) applyNodeToMasterBlockSpecificPorts(c *fi.ModelBu
 					FromPort:      i64(int64(r.From)),
 					ToPort:        i64(int64(r.To)),
 					Protocol:      s("udp"),
+					Shared:        getSharedSecGroup(masterGroup),
 				})
 			}
 			for _, r := range tcpRanges {
@@ -308,6 +307,7 @@ func (b *FirewallModelBuilder) applyNodeToMasterBlockSpecificPorts(c *fi.ModelBu
 					FromPort:      i64(int64(r.From)),
 					ToPort:        i64(int64(r.To)),
 					Protocol:      s("tcp"),
+					Shared:        getSharedSecGroup(masterGroup),
 				})
 			}
 			for _, protocol := range protocols {
@@ -326,7 +326,25 @@ func (b *FirewallModelBuilder) applyNodeToMasterBlockSpecificPorts(c *fi.ModelBu
 					SecurityGroup: masterGroup,
 					SourceGroup:   nodeGroup,
 					Protocol:      s(awsName),
+					Shared:        getSharedSecGroup(masterGroup),
 				})
+			}
+
+			// TODO we need to test this
+			// TODO what port should this be?
+			// Pods running in Nodes could need to reach pods in master/s
+			if b.Cluster.Spec.Networking != nil && b.Cluster.Spec.Networking.AmazonVPC != nil {
+				// Nodes can talk to masters
+				{
+					t := &awstasks.SecurityGroupRule{
+						Name:          s(fmt.Sprintf("all-nodes-to-master%s", nodeSecGroupName)),
+						Lifecycle:     b.Lifecycle,
+						SecurityGroup: masterGroup,
+						SourceGroup:   nodeGroup,
+						Shared:        getSharedSecGroup(masterGroup),
+					}
+					c.AddTask(t)
+				}
 			}
 		}
 	}
@@ -348,6 +366,7 @@ func (b *FirewallModelBuilder) buildMasterRules(c *fi.ModelBuilderContext, nodeG
 				SecurityGroup: masterGroup,
 				Egress:        fi.Bool(true),
 				CIDR:          s("0.0.0.0/0"),
+				Shared:        getSharedSecGroup(masterGroup),
 			}
 			c.AddTask(t)
 		}
@@ -359,6 +378,7 @@ func (b *FirewallModelBuilder) buildMasterRules(c *fi.ModelBuilderContext, nodeG
 				Lifecycle:     b.Lifecycle,
 				SecurityGroup: masterGroup,
 				SourceGroup:   masterGroup,
+				Shared:        getSharedSecGroup(masterGroup),
 			}
 			c.AddTask(t)
 		}
@@ -377,6 +397,7 @@ func (b *FirewallModelBuilder) buildMasterRules(c *fi.ModelBuilderContext, nodeG
 					Lifecycle:     b.Lifecycle,
 					SecurityGroup: nodeGroup,
 					SourceGroup:   masterGroup,
+					Shared:        getSharedSecGroup(nodeGroup),
 				}
 				c.AddTask(t)
 			}
