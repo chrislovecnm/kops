@@ -160,7 +160,7 @@ func TestPhaseCluster(t *testing.T) {
 func TestSharedSecurityGroups(t *testing.T) {
 	// TODO need lifecycles and phases to fix this ... I think?
 	//t.Skip("skipping test because we are getting tf for the security rules")
-	runTestAWS(t, "sec-groups.example.com", "shared_security_groups", "v1alpha2", false, 1)
+	runTestAWS(t, "sec-groups.example.com", "shared_security_groups", "v1alpha2", false, 3)
 }
 
 func runTest(t *testing.T, h *testutils.IntegrationTestHarness, clusterName string, srcDir string, version string, private bool, zones int, expectedFilenames []string, tfFileName string, phase *cloudup.Phase) {

@@ -3,7 +3,7 @@ output "cluster_name" {
 }
 
 output "master_security_group_ids" {
-  value = ["${aws_security_group.sg-c4d4a3b7.id}"]
+  value = ["${aws_security_group.sg-c4d4a3b7.id}", "${aws_security_group.sg-c4d4a3b8.id}", "${aws_security_group.sg-c4d4a3b9.id}"]
 }
 
 output "masters_role_arn" {
@@ -19,7 +19,7 @@ output "node_security_group_ids" {
 }
 
 output "node_subnet_ids" {
-  value = ["subnet-12345678"]
+  value = ["subnet-12345671", "subnet-12345678", "subnet-12345679"]
 }
 
 output "nodes_role_arn" {
@@ -35,7 +35,7 @@ output "region" {
 }
 
 output "subnet_ids" {
-  value = ["subnet-12345678"]
+  value = ["subnet-12345671", "subnet-12345678", "subnet-12345679"]
 }
 
 output "vpc_id" {
@@ -72,12 +72,64 @@ resource "aws_autoscaling_group" "master-us-test-1a-masters-sec-groups-example-c
   }
 }
 
+resource "aws_autoscaling_group" "master-us-test-1b-masters-sec-groups-example-com" {
+  name                 = "master-us-test-1b.masters.sec-groups.example.com"
+  launch_configuration = "${aws_launch_configuration.master-us-test-1b-masters-sec-groups-example-com.id}"
+  max_size             = 1
+  min_size             = 1
+  vpc_zone_identifier  = ["subnet-12345679"]
+
+  tag = {
+    key                 = "KubernetesCluster"
+    value               = "sec-groups.example.com"
+    propagate_at_launch = true
+  }
+
+  tag = {
+    key                 = "Name"
+    value               = "master-us-test-1b.masters.sec-groups.example.com"
+    propagate_at_launch = true
+  }
+
+  tag = {
+    key                 = "k8s.io/role/master"
+    value               = "1"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_autoscaling_group" "master-us-test-1c-masters-sec-groups-example-com" {
+  name                 = "master-us-test-1c.masters.sec-groups.example.com"
+  launch_configuration = "${aws_launch_configuration.master-us-test-1c-masters-sec-groups-example-com.id}"
+  max_size             = 1
+  min_size             = 1
+  vpc_zone_identifier  = ["subnet-12345671"]
+
+  tag = {
+    key                 = "KubernetesCluster"
+    value               = "sec-groups.example.com"
+    propagate_at_launch = true
+  }
+
+  tag = {
+    key                 = "Name"
+    value               = "master-us-test-1c.masters.sec-groups.example.com"
+    propagate_at_launch = true
+  }
+
+  tag = {
+    key                 = "k8s.io/role/master"
+    value               = "1"
+    propagate_at_launch = true
+  }
+}
+
 resource "aws_autoscaling_group" "nodes-sec-groups-example-com" {
   name                 = "nodes.sec-groups.example.com"
   launch_configuration = "${aws_launch_configuration.nodes-sec-groups-example-com.id}"
   max_size             = 2
   min_size             = 2
-  vpc_zone_identifier  = ["subnet-12345678"]
+  vpc_zone_identifier  = ["subnet-12345678", "subnet-12345679", "subnet-12345671"]
 
   tag = {
     key                 = "KubernetesCluster"
@@ -98,7 +150,7 @@ resource "aws_autoscaling_group" "nodes-sec-groups-example-com" {
   }
 }
 
-resource "aws_ebs_volume" "d-etcd-events-sec-groups-example-com" {
+resource "aws_ebs_volume" "a-etcd-events-sec-groups-example-com" {
   availability_zone = "us-test-1a"
   size              = 20
   type              = "gp2"
@@ -106,13 +158,13 @@ resource "aws_ebs_volume" "d-etcd-events-sec-groups-example-com" {
 
   tags = {
     KubernetesCluster    = "sec-groups.example.com"
-    Name                 = "d.etcd-events.sec-groups.example.com"
-    "k8s.io/etcd/events" = "d/d"
+    Name                 = "a.etcd-events.sec-groups.example.com"
+    "k8s.io/etcd/events" = "a/a,b,c"
     "k8s.io/role/master" = "1"
   }
 }
 
-resource "aws_ebs_volume" "d-etcd-main-sec-groups-example-com" {
+resource "aws_ebs_volume" "a-etcd-main-sec-groups-example-com" {
   availability_zone = "us-test-1a"
   size              = 20
   type              = "gp2"
@@ -120,8 +172,64 @@ resource "aws_ebs_volume" "d-etcd-main-sec-groups-example-com" {
 
   tags = {
     KubernetesCluster    = "sec-groups.example.com"
-    Name                 = "d.etcd-main.sec-groups.example.com"
-    "k8s.io/etcd/main"   = "d/d"
+    Name                 = "a.etcd-main.sec-groups.example.com"
+    "k8s.io/etcd/main"   = "a/a,b,c"
+    "k8s.io/role/master" = "1"
+  }
+}
+
+resource "aws_ebs_volume" "b-etcd-events-sec-groups-example-com" {
+  availability_zone = "us-test-1b"
+  size              = 20
+  type              = "gp2"
+  encrypted         = false
+
+  tags = {
+    KubernetesCluster    = "sec-groups.example.com"
+    Name                 = "b.etcd-events.sec-groups.example.com"
+    "k8s.io/etcd/events" = "b/a,b,c"
+    "k8s.io/role/master" = "1"
+  }
+}
+
+resource "aws_ebs_volume" "b-etcd-main-sec-groups-example-com" {
+  availability_zone = "us-test-1b"
+  size              = 20
+  type              = "gp2"
+  encrypted         = false
+
+  tags = {
+    KubernetesCluster    = "sec-groups.example.com"
+    Name                 = "b.etcd-main.sec-groups.example.com"
+    "k8s.io/etcd/main"   = "b/a,b,c"
+    "k8s.io/role/master" = "1"
+  }
+}
+
+resource "aws_ebs_volume" "c-etcd-events-sec-groups-example-com" {
+  availability_zone = "us-test-1c"
+  size              = 20
+  type              = "gp2"
+  encrypted         = false
+
+  tags = {
+    KubernetesCluster    = "sec-groups.example.com"
+    Name                 = "c.etcd-events.sec-groups.example.com"
+    "k8s.io/etcd/events" = "c/a,b,c"
+    "k8s.io/role/master" = "1"
+  }
+}
+
+resource "aws_ebs_volume" "c-etcd-main-sec-groups-example-com" {
+  availability_zone = "us-test-1c"
+  size              = 20
+  type              = "gp2"
+  encrypted         = false
+
+  tags = {
+    KubernetesCluster    = "sec-groups.example.com"
+    Name                 = "c.etcd-main.sec-groups.example.com"
+    "k8s.io/etcd/main"   = "c/a,b,c"
     "k8s.io/role/master" = "1"
   }
 }
@@ -172,6 +280,58 @@ resource "aws_launch_configuration" "master-us-test-1a-masters-sec-groups-exampl
   security_groups             = ["${aws_security_group.sg-c4d4a3b7.id}"]
   associate_public_ip_address = true
   user_data                   = "${file("${path.module}/data/aws_launch_configuration_master-us-test-1a.masters.sec-groups.example.com_user_data")}"
+
+  root_block_device = {
+    volume_type           = "gp2"
+    volume_size           = 64
+    delete_on_termination = true
+  }
+
+  ephemeral_block_device = {
+    device_name  = "/dev/sdc"
+    virtual_name = "ephemeral0"
+  }
+
+  lifecycle = {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_launch_configuration" "master-us-test-1b-masters-sec-groups-example-com" {
+  name_prefix                 = "master-us-test-1b.masters.sec-groups.example.com-"
+  image_id                    = "ami-12345678"
+  instance_type               = "m3.medium"
+  key_name                    = "${aws_key_pair.kubernetes-sec-groups-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
+  iam_instance_profile        = "${aws_iam_instance_profile.masters-sec-groups-example-com.id}"
+  security_groups             = ["${aws_security_group.sg-c4d4a3b8.id}"]
+  associate_public_ip_address = true
+  user_data                   = "${file("${path.module}/data/aws_launch_configuration_master-us-test-1b.masters.sec-groups.example.com_user_data")}"
+
+  root_block_device = {
+    volume_type           = "gp2"
+    volume_size           = 64
+    delete_on_termination = true
+  }
+
+  ephemeral_block_device = {
+    device_name  = "/dev/sdc"
+    virtual_name = "ephemeral0"
+  }
+
+  lifecycle = {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_launch_configuration" "master-us-test-1c-masters-sec-groups-example-com" {
+  name_prefix                 = "master-us-test-1c.masters.sec-groups.example.com-"
+  image_id                    = "ami-12345678"
+  instance_type               = "m3.medium"
+  key_name                    = "${aws_key_pair.kubernetes-sec-groups-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
+  iam_instance_profile        = "${aws_iam_instance_profile.masters-sec-groups-example-com.id}"
+  security_groups             = ["${aws_security_group.sg-c4d4a3b9.id}"]
+  associate_public_ip_address = true
+  user_data                   = "${file("${path.module}/data/aws_launch_configuration_master-us-test-1c.masters.sec-groups.example.com_user_data")}"
 
   root_block_device = {
     volume_type           = "gp2"
