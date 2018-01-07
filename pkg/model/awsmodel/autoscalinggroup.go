@@ -76,9 +76,6 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				Name:      s(name),
 				Lifecycle: b.Lifecycle,
 
-				SecurityGroups: []*awstasks.SecurityGroup{
-					b.LinkToSecurityGroup(ig.Spec.Role),
-				},
 				IAMInstanceProfile:     b.LinkToIAMInstanceProfile(ig),
 				ImageID:                s(ig.Spec.Image),
 				InstanceType:           s(ig.Spec.MachineType),
@@ -90,8 +87,12 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 			if ig.Spec.SecurityGroup != nil {
 				t.SecurityGroups = []*awstasks.SecurityGroup{
 					{
-						Name: ig.Spec.SecurityGroup,
+						ID: ig.Spec.SecurityGroup,
 					},
+				}
+			} else {
+				t.SecurityGroups = []*awstasks.SecurityGroup{
+					b.LinkToSecurityGroup(ig.Spec.Role),
 				}
 			}
 
