@@ -30,6 +30,7 @@ import (
 	"k8s.io/kops/upup/pkg/fi/cloudup/dotasks"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gcetasks"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/openstack"
 	"k8s.io/kops/upup/pkg/fi/cloudup/openstacktasks"
 )
@@ -190,7 +191,7 @@ func (b *MasterVolumeBuilder) addGCEVolume(c *fi.ModelBuilderContext, name strin
 
 	// The tags are how protokube knows to mount the volume and use it for etcd
 	tags := make(map[string]string)
-	tags[gce.GceLabelNameKubernetesCluster] = gce.SafeClusterName(b.ClusterName())
+	tags[gce.GceLabelNameKubernetesCluster] = gcp.SafeClusterName(b.ClusterName())
 	tags[gce.GceLabelNameRolePrefix+"master"] = "master" // Can't start with a number
 	tags[gce.GceLabelNameEtcdClusterPrefix+etcd.Name] = gce.EncodeGCELabel(clusterSpec)
 

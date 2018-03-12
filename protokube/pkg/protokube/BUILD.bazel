@@ -37,6 +37,7 @@ go_library(
         "//protokube/pkg/gossip/gce:go_default_library",
         "//upup/pkg/fi/cloudup/awsup:go_default_library",
         "//upup/pkg/fi/cloudup/gce:go_default_library",
+        "//upup/pkg/fi/cloudup/gcp:go_default_library",
         "//upup/pkg/fi/cloudup/vsphere:go_default_library",
         "//util/pkg/exec:go_default_library",
         "//vendor/cloud.google.com/go/compute/metadata:go_default_library",

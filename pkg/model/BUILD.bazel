@@ -38,6 +38,7 @@ go_library(
         "//upup/pkg/fi/cloudup/dotasks:go_default_library",
         "//upup/pkg/fi/cloudup/gce:go_default_library",
         "//upup/pkg/fi/cloudup/gcetasks:go_default_library",
+        "//upup/pkg/fi/cloudup/gcp:go_default_library",
         "//upup/pkg/fi/cloudup/openstack:go_default_library",
         "//upup/pkg/fi/cloudup/openstacktasks:go_default_library",
         "//upup/pkg/fi/fitasks:go_default_library",

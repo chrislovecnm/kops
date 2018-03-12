@@ -16,8 +16,8 @@ limitations under the License.
 
 package gcetasks
 
-import "k8s.io/kops/upup/pkg/fi/cloudup/gce"
+import "k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 
 func lastComponent(url string) string {
-	return gce.LastComponent(url)
+	return gcp.LastComponent(url)
 }

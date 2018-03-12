@@ -25,6 +25,7 @@ import (
 	compute "google.golang.org/api/compute/v0.beta"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 )
 
@@ -65,7 +66,7 @@ func (e *Instance) Find(c *fi.Context) (*Instance, error) {
 
 	r, err := cloud.Compute().Instances.Get(cloud.Project(), *e.Zone, *e.Name).Do()
 	if err != nil {
-		if gce.IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("error listing Instances: %v", err)
@@ -116,7 +117,7 @@ func (e *Instance) Find(c *fi.Context) (*Instance, error) {
 			name := lastComponent(source)
 			d, err := cloud.Compute().Disks.Get(cloud.Project(), *e.Zone, name).Do()
 			if err != nil {
-				if gce.IsNotFound(err) {
+				if gcp.IsNotFound(err) {
 					return nil, fmt.Errorf("disk not found %q: %v", source, err)
 				}
 				return nil, fmt.Errorf("error querying for disk %q: %v", source, err)
@@ -128,7 +129,7 @@ func (e *Instance) Find(c *fi.Context) (*Instance, error) {
 			}
 			actual.Image = fi.String(image)
 		} else {
-			url, err := gce.ParseGoogleCloudURL(disk.Source)
+			url, err := gcp.ParseGoogleCloudURL(disk.Source)
 			if err != nil {
 				return nil, fmt.Errorf("unable to parse disk source URL: %q", disk.Source)
 			}
@@ -380,7 +381,7 @@ func BuildImageURL(defaultProject, nameSpec string) string {
 }
 
 func ShortenImageURL(defaultProject string, imageURL string) (string, error) {
-	u, err := gce.ParseGoogleCloudURL(imageURL)
+	u, err := gcp.ParseGoogleCloudURL(imageURL)
 	if err != nil {
 		return "", err
 	}

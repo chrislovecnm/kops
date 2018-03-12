@@ -28,6 +28,7 @@ import (
 	"k8s.io/kops/pkg/assets"
 	"k8s.io/kops/pkg/k8sversion"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/util/pkg/vfs"
 
 	"github.com/blang/semver"
@@ -179,5 +180,5 @@ func Image(component string, clusterSpec *kops.ClusterSpec, assetsBuilder *asset
 }
 
 func GCETagForRole(clusterName string, role kops.InstanceGroupRole) string {
-	return gce.SafeClusterName(clusterName) + "-" + gce.GceLabelNameRolePrefix + strings.ToLower(string(role))
+	return gcp.SafeClusterName(clusterName) + "-" + gce.GceLabelNameRolePrefix + strings.ToLower(string(role))
 }

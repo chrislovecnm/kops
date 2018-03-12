@@ -45,7 +45,7 @@ import (
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
-	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/utils"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	"k8s.io/kubernetes/pkg/kubectl/util/i18n"
@@ -489,7 +489,7 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 	} else if api.CloudProviderID(cluster.Spec.CloudProvider) == api.CloudProviderGCE {
 		// On GCE, subnets are regional - we create one per region, not per zone
 		for _, zoneName := range allZones.List() {
-			region, err := gce.ZoneToRegion(zoneName)
+			region, err := gcp.ZoneToRegion(zoneName)
 			if err != nil {
 				return err
 			}
@@ -814,7 +814,7 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 	}
 	if api.CloudProviderID(cluster.Spec.CloudProvider) == api.CloudProviderGCE {
 		if cluster.Spec.Project == "" {
-			project, err := gce.DefaultProject()
+			project, err := gcp.DefaultProject()
 			if err != nil {
 				glog.Warningf("unable to get default google cloud project: %v", err)
 			} else if project == "" {

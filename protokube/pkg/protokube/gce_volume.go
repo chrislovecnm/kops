@@ -31,6 +31,7 @@ import (
 	"k8s.io/kops/protokube/pkg/gossip"
 	gossipgce "k8s.io/kops/protokube/pkg/gossip/gce"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 )
 
 // GCEVolumes is the Volumes implementation for GCE
@@ -179,7 +180,7 @@ func (v *GCEVolumes) buildGCEVolume(d *compute.Disk) (*Volume, error) {
 	vol.Status = d.Status
 
 	for _, attachedTo := range d.Users {
-		u, err := gce.ParseGoogleCloudURL(attachedTo)
+		u, err := gcp.ParseGoogleCloudURL(attachedTo)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing disk attachmnet url %q: %v", attachedTo, err)
 		}
@@ -246,7 +247,7 @@ func (v *GCEVolumes) FindVolumes() ([]*Volume, error) {
 			// this is because it is also used by k8s itself, e.g. in the route controller,
 			// and that is not encoded (issue #28436)
 			// Instead we use the much simpler SafeClusterName sanitizer
-			findClusterName := gce.SafeClusterName(v.clusterName)
+			findClusterName := gcp.SafeClusterName(v.clusterName)
 			if diskClusterName != findClusterName {
 				glog.V(2).Infof("Skipping disk %q with cluster name that does not match: %s=%s (looking for %s)", d.Name, gce.GceLabelNameKubernetesCluster, diskClusterName, findClusterName)
 				continue
@@ -329,7 +330,7 @@ func (v *GCEVolumes) FindMountedVolume(volume *Volume) (string, error) {
 func (v *GCEVolumes) AttachVolume(volume *Volume) error {
 	volumeName := volume.ID
 
-	volumeURL := gce.GoogleCloudURL{
+	volumeURL := gcp.GoogleCloudURL{
 		Project: v.project,
 		Zone:    v.zone,
 		Name:    volumeName,
@@ -350,7 +351,7 @@ func (v *GCEVolumes) AttachVolume(volume *Volume) error {
 		return fmt.Errorf("error attach disk %q: %v", volumeName, err)
 	}
 
-	err = gce.WaitForOp(v.compute, attachOp)
+	err = gcp.WaitForOp(v.compute, attachOp)
 	if err != nil {
 		return fmt.Errorf("error waiting for disk attach to complete %q: %v", volumeName, err)
 	}

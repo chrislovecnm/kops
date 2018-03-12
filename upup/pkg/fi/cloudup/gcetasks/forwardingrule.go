@@ -23,6 +23,7 @@ import (
 	compute "google.golang.org/api/compute/v0.beta"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 )
 
@@ -50,7 +51,7 @@ func (e *ForwardingRule) Find(c *fi.Context) (*ForwardingRule, error) {
 
 	r, err := cloud.Compute().ForwardingRules.Get(cloud.Project(), cloud.Region(), name).Do()
 	if err != nil {
-		if gce.IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("error getting ForwardingRule %q: %v", name, err)

@@ -29,6 +29,7 @@ import (
 	"k8s.io/kops/upup/pkg/fi/cloudup/baremetal"
 	"k8s.io/kops/upup/pkg/fi/cloudup/do"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/openstack"
 	"k8s.io/kops/upup/pkg/fi/cloudup/vsphere"
 )
@@ -56,7 +57,7 @@ func BuildCloud(cluster *kops.Cluster) (fi.Cloud, error) {
 				return nil, fmt.Errorf("project is required for GCE - try gcloud config get-value project")
 			}
 
-			labels := map[string]string{gce.GceLabelNameKubernetesCluster: gce.SafeClusterName(cluster.ObjectMeta.Name)}
+			labels := map[string]string{gce.GceLabelNameKubernetesCluster: gcp.SafeClusterName(cluster.ObjectMeta.Name)}
 
 			gceCloud, err := gce.NewGCECloud(region, project, labels)
 			if err != nil {

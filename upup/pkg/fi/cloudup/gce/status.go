@@ -26,6 +26,7 @@ import (
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/protokube/pkg/etcd"
 	"k8s.io/kops/upup/pkg/fi"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 )
 
 func (c *gceCloudImplementation) allZones() ([]string, error) {
@@ -35,7 +36,7 @@ func (c *gceCloudImplementation) allZones() ([]string, error) {
 	ctx := context.Background()
 	err := c.compute.Zones.List(c.project).Pages(ctx, func(page *compute.ZoneList) error {
 		for _, zone := range page.Items {
-			regionName := LastComponent(zone.Region)
+			regionName := gcp.LastComponent(zone.Region)
 			if regionName == c.region {
 				zones = append(zones, zone.Name)
 			}

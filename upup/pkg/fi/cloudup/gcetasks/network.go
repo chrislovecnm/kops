@@ -24,6 +24,7 @@ import (
 	compute "google.golang.org/api/compute/v0.beta"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 )
 
@@ -47,7 +48,7 @@ func (e *Network) Find(c *fi.Context) (*Network, error) {
 
 	r, err := cloud.Compute().Networks.Get(cloud.Project(), *e.Name).Do()
 	if err != nil {
-		if gce.IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("error listing Networks: %v", err)
@@ -75,7 +76,7 @@ func (e *Network) Find(c *fi.Context) (*Network, error) {
 }
 
 func (e *Network) URL(project string) string {
-	u := gce.GoogleCloudURL{
+	u := gcp.GoogleCloudURL{
 		Version: "beta",
 		Project: project,
 		Name:    *e.Name,

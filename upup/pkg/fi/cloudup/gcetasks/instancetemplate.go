@@ -29,6 +29,7 @@ import (
 	"k8s.io/kops/pkg/diff"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 )
 
@@ -78,7 +79,7 @@ func (e *InstanceTemplate) Find(c *fi.Context) (*InstanceTemplate, error) {
 
 	response, err := cloud.Compute().InstanceTemplates.List(cloud.Project()).Do()
 	if err != nil {
-		if gce.IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("error listing InstanceTemplates: %v", err)

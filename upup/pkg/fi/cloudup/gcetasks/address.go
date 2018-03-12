@@ -23,6 +23,7 @@ import (
 	compute "google.golang.org/api/compute/v0.beta"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 )
 
@@ -68,7 +69,7 @@ func findAddressByIP(cloud gce.GCECloud, ip string) (*Address, error) {
 func (e *Address) find(cloud gce.GCECloud) (*Address, error) {
 	r, err := cloud.Compute().Addresses.Get(cloud.Project(), cloud.Region(), *e.Name).Do()
 	if err != nil {
-		if gce.IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			return nil, nil
 		}
 

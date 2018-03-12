@@ -251,6 +251,7 @@ type CloudProviderID string
 const CloudProviderAWS CloudProviderID = "aws"
 const CloudProviderBareMetal CloudProviderID = "baremetal"
 const CloudProviderGCE CloudProviderID = "gce"
+const CloudProviderGKE CloudProviderID = "gke"
 const CloudProviderDO CloudProviderID = "digitalocean"
 const CloudProviderVSphere CloudProviderID = "vsphere"
 const CloudProviderOpenstack CloudProviderID = "openstack"

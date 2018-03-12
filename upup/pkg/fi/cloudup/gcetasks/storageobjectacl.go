@@ -23,6 +23,7 @@ import (
 	"google.golang.org/api/storage/v1"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 )
 
@@ -55,7 +56,7 @@ func (e *StorageObjectAcl) Find(c *fi.Context) (*StorageObjectAcl, error) {
 	glog.V(2).Infof("Checking GCS object ACL for gs://%s/%s for %s", bucket, object, entity)
 	r, err := cloud.Storage().ObjectAccessControls.Get(bucket, object, entity).Do()
 	if err != nil {
-		if gce.IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("error querying GCS object ACL for gs://%s/%s for %s: %v", bucket, object, entity, err)

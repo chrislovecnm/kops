@@ -14,12 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gce
+package gcp
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 
+	"bytes"
+	"os"
+
+	"github.com/golang/glog"
 	"google.golang.org/api/googleapi"
 )
 
@@ -80,4 +85,35 @@ func ZoneToRegion(zone string) (string, error) {
 	}
 	region := tokens[0] + "-" + tokens[1]
 	return region, nil
+}
+
+// DefaultProject returns the current project configured in the gcloud SDK, ("", nil) if no project was set
+func DefaultProject() (string, error) {
+	// The default project isn't usually defined by the google cloud APIs,
+	// for example the Application Default Credential won't have ProjectID set.
+	// If we're running on a GCP instance, we can get it from the metadata service,
+	// but the normal kops CLI usage is running locally with gcloud configuration with a project,
+	// so we use that value.
+	cmd := exec.Command("gcloud", "config", "get-value", "project")
+
+	env := os.Environ()
+	cmd.Env = env
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	human := strings.Join(cmd.Args, " ")
+	glog.V(2).Infof("Running command: %s", human)
+	err := cmd.Run()
+	if err != nil {
+		glog.Infof("error running %s", human)
+		glog.Info(stdout.String())
+		glog.Info(stderr.String())
+		return "", fmt.Errorf("error running %s: %v", human, err)
+	}
+
+	projectID := strings.TrimSpace(stdout.String())
+	return projectID, err
 }

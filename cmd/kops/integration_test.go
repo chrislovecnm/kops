@@ -40,7 +40,7 @@ import (
 	"k8s.io/kops/pkg/jsonutils"
 	"k8s.io/kops/pkg/testutils"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
-	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 
 	"github.com/ghodss/yaml"
 	"golang.org/x/crypto/ssh"
@@ -410,13 +410,13 @@ func runTestGCE(t *testing.T, clusterName string, srcDir string, version string,
 	h.SetupMockGCE()
 
 	expectedFilenames := []string{
-		"google_compute_instance_template_nodes-" + gce.SafeClusterName(clusterName) + "_metadata_cluster-name",
-		"google_compute_instance_template_nodes-" + gce.SafeClusterName(clusterName) + "_metadata_startup-script",
+		"google_compute_instance_template_nodes-" + gcp.SafeClusterName(clusterName) + "_metadata_cluster-name",
+		"google_compute_instance_template_nodes-" + gcp.SafeClusterName(clusterName) + "_metadata_startup-script",
 	}
 
 	for i := 0; i < zones; i++ {
 		zone := "us-test1-" + string([]byte{byte('a') + byte(i)})
-		prefix := "google_compute_instance_template_master-" + zone + "-" + gce.SafeClusterName(clusterName) + "_metadata_"
+		prefix := "google_compute_instance_template_master-" + zone + "-" + gcp.SafeClusterName(clusterName) + "_metadata_"
 
 		expectedFilenames = append(expectedFilenames, prefix+"cluster-name")
 		expectedFilenames = append(expectedFilenames, prefix+"startup-script")

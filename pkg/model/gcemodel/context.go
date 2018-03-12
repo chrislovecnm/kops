@@ -20,7 +20,7 @@ import (
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/model"
 	"k8s.io/kops/pkg/model/components"
-	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gcetasks"
 )
 
@@ -44,7 +44,7 @@ func (c *GCEModelContext) NameForNetwork() string {
 
 // SafeObjectName returns the object name and cluster name escaped for GCE
 func (c *GCEModelContext) SafeObjectName(name string) string {
-	return gce.SafeObjectName(name, c.Cluster.ObjectMeta.Name)
+	return gcp.SafeObjectName(name, c.Cluster.ObjectMeta.Name)
 }
 
 func (c *GCEModelContext) GCETagForRole(role kops.InstanceGroupRole) string {

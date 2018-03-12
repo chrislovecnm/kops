@@ -25,6 +25,7 @@ import (
 	compute "google.golang.org/api/compute/v0.beta"
 	"k8s.io/kops/pkg/resources"
 	gce "k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 )
 
 // dumpState holds state for use during a GCE dump operation
@@ -43,7 +44,7 @@ type dumpState struct {
 func DumpManagedInstance(op *resources.DumpOperation, r *resources.Resource) error {
 	instance := r.Obj.(*compute.ManagedInstance)
 
-	u, err := gce.ParseGoogleCloudURL(instance.Instance)
+	u, err := gcp.ParseGoogleCloudURL(instance.Instance)
 	if err != nil {
 		return fmt.Errorf("unable to parse instance url %q", instance.Instance)
 	}

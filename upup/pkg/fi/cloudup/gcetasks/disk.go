@@ -24,6 +24,7 @@ import (
 	compute "google.golang.org/api/compute/v0.beta"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 )
 
@@ -50,7 +51,7 @@ func (e *Disk) Find(c *fi.Context) (*Disk, error) {
 
 	r, err := cloud.Compute().Disks.Get(cloud.Project(), *e.Zone, *e.Name).Do()
 	if err != nil {
-		if gce.IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("error listing Disks: %v", err)
@@ -58,8 +59,8 @@ func (e *Disk) Find(c *fi.Context) (*Disk, error) {
 
 	actual := &Disk{}
 	actual.Name = &r.Name
-	actual.VolumeType = fi.String(gce.LastComponent(r.Type))
-	actual.Zone = fi.String(gce.LastComponent(r.Zone))
+	actual.VolumeType = fi.String(gcp.LastComponent(r.Type))
+	actual.Zone = fi.String(gcp.LastComponent(r.Zone))
 	actual.SizeGB = &r.SizeGb
 
 	actual.Labels = r.Labels
@@ -71,7 +72,7 @@ func (e *Disk) Find(c *fi.Context) (*Disk, error) {
 }
 
 func (e *Disk) URL(project string) string {
-	u := &gce.GoogleCloudURL{
+	u := &gcp.GoogleCloudURL{
 		Project: project,
 		Zone:    *e.Zone,
 		Type:    "disks",

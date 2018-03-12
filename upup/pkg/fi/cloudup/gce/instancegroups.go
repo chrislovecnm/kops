@@ -29,6 +29,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/cloudinstances"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 )
 
 // DeleteGroup deletes a cloud of instances controlled by an Instance Group Manager
@@ -68,7 +69,7 @@ func recreateCloudInstanceGroupMember(c GCECloud, i *cloudinstances.CloudInstanc
 
 	glog.V(2).Infof("Recreating GCE Instance %s in MIG %s", i.ID, mig.Name)
 
-	migURL, err := ParseGoogleCloudURL(mig.SelfLink)
+	migURL, err := gcp.ParseGoogleCloudURL(mig.SelfLink)
 	if err != nil {
 		return err
 	}
@@ -80,7 +81,7 @@ func recreateCloudInstanceGroupMember(c GCECloud, i *cloudinstances.CloudInstanc
 	}
 	op, err := c.Compute().InstanceGroupManagers.RecreateInstances(migURL.Project, migURL.Zone, migURL.Name, req).Do()
 	if err != nil {
-		if IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			glog.Infof("Instance not found, assuming deleted: %q", i.ID)
 			return nil
 		}
@@ -204,7 +205,7 @@ func NameForInstanceGroupManager(c *kops.Cluster, ig *kops.InstanceGroup, zone s
 	if lastDash != -1 {
 		shortZone = shortZone[lastDash+1:]
 	}
-	name := SafeObjectName(shortZone+"."+ig.ObjectMeta.Name, c.ObjectMeta.Name)
+	name := gcp.SafeObjectName(shortZone+"."+ig.ObjectMeta.Name, c.ObjectMeta.Name)
 	name = LimitedLengthName(name, 63)
 	return name
 }
@@ -237,10 +238,10 @@ func LimitedLengthName(s string, n int) string {
 
 // matchInstanceGroup filters a list of instancegroups for recognized cloud groups
 func matchInstanceGroup(mig *compute.InstanceGroupManager, c *kops.Cluster, instancegroups []*kops.InstanceGroup) (*kops.InstanceGroup, error) {
-	migName := LastComponent(mig.Name)
+	migName := gcp.LastComponent(mig.Name)
 	var matches []*kops.InstanceGroup
 	for _, ig := range instancegroups {
-		name := NameForInstanceGroupManager(c, ig, LastComponent(mig.Zone))
+		name := NameForInstanceGroupManager(c, ig, gcp.LastComponent(mig.Zone))
 		if name == migName {
 			matches = append(matches, ig)
 		}

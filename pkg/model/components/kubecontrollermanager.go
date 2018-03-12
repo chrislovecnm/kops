@@ -25,7 +25,7 @@ import (
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/util"
 	"k8s.io/kops/upup/pkg/fi"
-	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/loader"
 )
 
@@ -102,7 +102,7 @@ func (b *KubeControllerManagerOptionsBuilder) BuildOptions(o interface{}) error 
 
 	case kops.CloudProviderGCE:
 		kcm.CloudProvider = "gce"
-		kcm.ClusterName = gce.SafeClusterName(b.Context.ClusterName)
+		kcm.ClusterName = gcp.SafeClusterName(b.Context.ClusterName)
 
 	case kops.CloudProviderDO:
 		kcm.CloudProvider = "external"

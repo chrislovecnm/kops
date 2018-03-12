@@ -22,19 +22,20 @@ import (
 	"github.com/golang/glog"
 	context "golang.org/x/net/context"
 	compute "google.golang.org/api/compute/v0.beta"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 )
 
 // DeleteInstanceGroupManager deletes the specified InstanceGroupManager in GCE
 func DeleteInstanceGroupManager(c GCECloud, t *compute.InstanceGroupManager) error {
 	glog.V(2).Infof("Deleting GCE InstanceGroupManager %s", t.SelfLink)
-	u, err := ParseGoogleCloudURL(t.SelfLink)
+	u, err := gcp.ParseGoogleCloudURL(t.SelfLink)
 	if err != nil {
 		return err
 	}
 
 	op, err := c.Compute().InstanceGroupManagers.Delete(u.Project, u.Zone, u.Name).Do()
 	if err != nil {
-		if IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			glog.Infof("InstanceGroupManager not found, assuming deleted: %q", t.SelfLink)
 			return nil
 		}
@@ -47,14 +48,14 @@ func DeleteInstanceGroupManager(c GCECloud, t *compute.InstanceGroupManager) err
 // DeleteInstanceTemplate deletes the specified InstanceTemplate (by URL) in GCE
 func DeleteInstanceTemplate(c GCECloud, selfLink string) error {
 	glog.V(2).Infof("Deleting GCE InstanceTemplate %s", selfLink)
-	u, err := ParseGoogleCloudURL(selfLink)
+	u, err := gcp.ParseGoogleCloudURL(selfLink)
 	if err != nil {
 		return err
 	}
 
 	op, err := c.Compute().InstanceTemplates.Delete(u.Project, u.Name).Do()
 	if err != nil {
-		if IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			glog.Infof("instancetemplate not found, assuming deleted: %q", selfLink)
 			return nil
 		}
@@ -67,14 +68,14 @@ func DeleteInstanceTemplate(c GCECloud, selfLink string) error {
 // DeleteInstance deletes the specified instance (by URL) in GCE
 func DeleteInstance(c GCECloud, instanceSelfLink string) error {
 	glog.V(2).Infof("Deleting GCE Instance %s", instanceSelfLink)
-	u, err := ParseGoogleCloudURL(instanceSelfLink)
+	u, err := gcp.ParseGoogleCloudURL(instanceSelfLink)
 	if err != nil {
 		return err
 	}
 
 	op, err := c.Compute().Instances.Delete(u.Project, u.Zone, u.Name).Do()
 	if err != nil {
-		if IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			glog.Infof("Instance not found, assuming deleted: %q", instanceSelfLink)
 			return nil
 		}
@@ -89,7 +90,7 @@ func ListManagedInstances(c GCECloud, igm *compute.InstanceGroupManager) ([]*com
 	ctx := context.Background()
 	project := c.Project()
 
-	zoneName := LastComponent(igm.Zone)
+	zoneName := gcp.LastComponent(igm.Zone)
 
 	// TODO: Only select a subset of fields
 	//	req.Fields(

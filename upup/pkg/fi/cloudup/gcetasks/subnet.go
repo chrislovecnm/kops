@@ -23,6 +23,7 @@ import (
 	compute "google.golang.org/api/compute/v0.beta"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 )
 
@@ -47,7 +48,7 @@ func (e *Subnet) Find(c *fi.Context) (*Subnet, error) {
 
 	s, err := cloud.Compute().Subnetworks.Get(cloud.Project(), cloud.Region(), *e.Name).Do()
 	if err != nil {
-		if gce.IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("error listing Subnets: %v", err)

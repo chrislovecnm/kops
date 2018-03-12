@@ -17,11 +17,9 @@ limitations under the License.
 package gce
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/golang/glog"
@@ -35,6 +33,7 @@ import (
 	"k8s.io/kops/dnsprovider/pkg/dnsprovider/providers/google/clouddns"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/upup/pkg/fi"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 )
 
 type GCECloud interface {
@@ -79,37 +78,6 @@ func (c *gceCloudImplementation) ProviderID() kops.CloudProviderID {
 }
 
 var gceCloudInstances map[string]GCECloud = make(map[string]GCECloud)
-
-// DefaultProject returns the current project configured in the gcloud SDK, ("", nil) if no project was set
-func DefaultProject() (string, error) {
-	// The default project isn't usually defined by the google cloud APIs,
-	// for example the Application Default Credential won't have ProjectID set.
-	// If we're running on a GCP instance, we can get it from the metadata service,
-	// but the normal kops CLI usage is running locally with gcloud configuration with a project,
-	// so we use that value.
-	cmd := exec.Command("gcloud", "config", "get-value", "project")
-
-	env := os.Environ()
-	cmd.Env = env
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	human := strings.Join(cmd.Args, " ")
-	glog.V(2).Infof("Running command: %s", human)
-	err := cmd.Run()
-	if err != nil {
-		glog.Infof("error running %s", human)
-		glog.Info(stdout.String())
-		glog.Info(stderr.String())
-		return "", fmt.Errorf("error running %s: %v", human, err)
-	}
-
-	projectID := strings.TrimSpace(stdout.String())
-	return projectID, err
-}
 
 func NewGCECloud(region string, project string, labels map[string]string) (GCECloud, error) {
 	i := gceCloudInstances[region+"::"+project]
@@ -257,7 +225,7 @@ func (c *gceCloudImplementation) Zones() ([]string, error) {
 		return nil, fmt.Errorf("error listing zones: %v", err)
 	}
 	for _, gceZone := range gceZones.Items {
-		u, err := ParseGoogleCloudURL(gceZone.Region)
+		u, err := gcp.ParseGoogleCloudURL(gceZone.Region)
 		if err != nil {
 			return nil, err
 		}
@@ -275,19 +243,19 @@ func (c *gceCloudImplementation) Zones() ([]string, error) {
 }
 
 func (c *gceCloudImplementation) WaitForOp(op *compute.Operation) error {
-	return WaitForOp(c.compute, op)
+	return gcp.WaitForOp(c.compute, op)
 }
 
 func (c *gceCloudImplementation) GetApiIngressStatus(cluster *kops.Cluster) ([]kops.ApiIngressStatus, error) {
 	var ingresses []kops.ApiIngressStatus
 
 	// Note that this must match GCEModelContext::NameForForwardingRule
-	name := SafeObjectName("api", cluster.ObjectMeta.Name)
+	name := gcp.SafeObjectName("api", cluster.ObjectMeta.Name)
 
 	glog.V(2).Infof("Querying GCE to find ForwardingRules for API (%q)", name)
 	forwardingRule, err := c.compute.ForwardingRules.Get(c.project, c.region, name).Do()
 	if err != nil {
-		if !IsNotFound(err) {
+		if !gcp.IsNotFound(err) {
 			forwardingRule = nil
 		} else {
 			return nil, fmt.Errorf("error getting ForwardingRule %q: %v", name, err)

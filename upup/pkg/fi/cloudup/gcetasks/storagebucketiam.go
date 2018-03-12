@@ -23,6 +23,7 @@ import (
 	"google.golang.org/api/storage/v1"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 )
 
@@ -54,7 +55,7 @@ func (e *StorageBucketIam) Find(c *fi.Context) (*StorageBucketIam, error) {
 	glog.V(2).Infof("Checking GCS IAM policy for gs://%s for %s", bucket, entity)
 	policy, err := cloud.Storage().Buckets.GetIamPolicy(bucket).Do()
 	if err != nil {
-		if gce.IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			policy = &storage.Policy{}
 		} else {
 			return nil, fmt.Errorf("error querying GCS IAM policy for gs://%s for %s: %v", bucket, entity, err)
@@ -103,7 +104,7 @@ func (_ *StorageBucketIam) RenderGCE(t *gce.GCEAPITarget, a, e, changes *Storage
 
 	policy, err := t.Cloud.Storage().Buckets.GetIamPolicy(bucket).Do()
 	if err != nil {
-		if gce.IsNotFound(err) {
+		if gcp.IsNotFound(err) {
 			policy = &storage.Policy{}
 		} else {
 			return fmt.Errorf("error querying GCS IAM policy for gs://%s: %v", bucket, err)
