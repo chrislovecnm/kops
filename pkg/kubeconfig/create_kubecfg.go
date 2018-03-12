@@ -37,6 +37,8 @@ func BuildKubecfg(cluster *kops.Cluster, keyStore fi.Keystore, secretStore fi.Se
 	server := "https://" + master
 	topology := cluster.Spec.Topology
 
+	// FIXME implement getting config for GKE
+
 	if dns.IsGossipHostname(master) || topology.DNS.Type == kops.DNSTypePrivate {
 		ingresses, err := status.GetApiIngressStatus(cluster)
 		if err != nil {

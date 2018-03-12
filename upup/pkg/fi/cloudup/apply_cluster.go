@@ -43,6 +43,7 @@ import (
 	"k8s.io/kops/pkg/model/components"
 	"k8s.io/kops/pkg/model/domodel"
 	"k8s.io/kops/pkg/model/gcemodel"
+	"k8s.io/kops/pkg/model/gkemodel"
 	"k8s.io/kops/pkg/model/vspheremodel"
 	"k8s.io/kops/pkg/resources/digitalocean"
 	"k8s.io/kops/pkg/templates"
@@ -56,6 +57,8 @@ import (
 	"k8s.io/kops/upup/pkg/fi/cloudup/dotasks"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gcetasks"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gke"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gketasks"
 	"k8s.io/kops/upup/pkg/fi/cloudup/openstack"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 	"k8s.io/kops/upup/pkg/fi/cloudup/vsphere"
@@ -76,6 +79,8 @@ var (
 	AlphaAllowDO = featureflag.New("AlphaAllowDO", featureflag.Bool(false))
 	// AlphaAllowGCE is a feature flag that gates GCE support while it is alpha
 	AlphaAllowGCE = featureflag.New("AlphaAllowGCE", featureflag.Bool(false))
+	// AlphaAllowGKE is a feature flag that gates GKE support while it is alpha
+	AlphaAllowGKE = featureflag.New("AlphaAllowGKE", featureflag.Bool(false))
 	// AlphaAllowVsphere is a feature flag that gates vsphere support while it is alpha
 	AlphaAllowVsphere = featureflag.New("AlphaAllowVsphere", featureflag.Bool(false))
 	// CloudupModels a list of supported models
@@ -320,6 +325,26 @@ func (c *ApplyClusterCmd) Run() error {
 	}
 
 	switch kops.CloudProviderID(cluster.Spec.CloudProvider) {
+
+	case kops.CloudProviderGKE:
+		{
+			gkeCloud := cloud.(gke.GKECloud)
+			region = gkeCloud.Region()
+			project = gkeCloud.Project()
+
+			// TODO FIXME
+			//if !AlphaAllowGKE.Enabled() {
+			//	return fmt.Errorf("GKE support is currently alpha, and is feature-gated.  export KOPS_FEATURE_FLAGS=AlphaAllowGKE")
+			//}
+
+			l.Init()
+			l.Cluster = c.Cluster
+
+			l.AddTypes(map[string]interface{}{
+				"GKECluster": &gketasks.GKECluster{},
+				"Instance":   &gketasks.NodePool{},
+			})
+		}
 	case kops.CloudProviderGCE:
 		{
 			gceCloud := cloud.(gce.GCECloud)
@@ -436,7 +461,7 @@ func (c *ApplyClusterCmd) Run() error {
 	case kops.CloudProviderOpenstack:
 
 	default:
-		return fmt.Errorf("unknown CloudProvider %q", cluster.Spec.CloudProvider)
+		return fmt.Errorf("apply cluster types unknown CloudProvider %q", cluster.Spec.CloudProvider)
 	}
 
 	modelContext.Region = region
@@ -516,6 +541,18 @@ func (c *ApplyClusterCmd) Run() error {
 			case kops.CloudProviderDO:
 				l.Builders = append(l.Builders,
 					&model.MasterVolumeBuilder{KopsModelContext: modelContext, Lifecycle: &clusterLifecycle},
+				)
+
+			case kops.CloudProviderGKE:
+				storageAclLifecycle := securityLifecycle
+				if storageAclLifecycle != fi.LifecycleIgnore {
+					// This is a best-effort permissions fix
+					storageAclLifecycle = fi.LifecycleWarnIfInsufficientAccess
+				}
+
+				l.Builders = append(l.Builders,
+					&gkemodel.GKEClusterModelBuilder{KopsModelContext: modelContext, Lifecycle: &clusterLifecycle},
+					&gkemodel.NodePoolModelBuilder{KopsModelContext: modelContext, Lifecycle: &clusterLifecycle},
 				)
 
 			case kops.CloudProviderGCE:
@@ -628,6 +665,9 @@ func (c *ApplyClusterCmd) Run() error {
 
 	case kops.CloudProviderOpenstack:
 
+	case kops.CloudProviderGKE:
+		// Nothing at this time
+
 	default:
 		return fmt.Errorf("unknown cloudprovider %q", cluster.Spec.CloudProvider)
 	}
@@ -652,6 +692,8 @@ func (c *ApplyClusterCmd) Run() error {
 		switch kops.CloudProviderID(cluster.Spec.CloudProvider) {
 		case kops.CloudProviderGCE:
 			target = gce.NewGCEAPITarget(cloud.(gce.GCECloud))
+		case kops.CloudProviderGKE:
+			target = gke.NewGKEAPITarget(cloud.(gke.GKECloud))
 		case kops.CloudProviderAWS:
 			target = awsup.NewAWSAPITarget(cloud.(awsup.AWSCloud))
 		case kops.CloudProviderDO:

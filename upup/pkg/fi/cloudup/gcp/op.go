@@ -23,8 +23,12 @@ import (
 	"fmt"
 	"time"
 
+	"net/url"
+	"regexp"
+
 	"github.com/golang/glog"
 	compute "google.golang.org/api/compute/v0.beta"
+	container "google.golang.org/api/container/v1"
 	"google.golang.org/api/googleapi"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
@@ -49,6 +53,40 @@ func WaitForOp(client *compute.Service, op *compute.Operation) error {
 	}
 
 	return waitForGlobalOp(client, op)
+}
+
+func WaitForContainerOp(client *container.ProjectsZonesService, op *container.Operation) error {
+	return waitForContainerZoneOp(client, op)
+}
+
+var re = regexp.MustCompile(`v1/projects/(\d+)/zones/`)
+
+func getProject(projectURL string) (string, error) {
+	u, err := url.Parse(projectURL)
+	if err != nil {
+		return "", err
+	}
+
+	a := re.FindAllStringSubmatch(u.Path, 1)
+	if len(a) != 1 {
+		return "", fmt.Errorf("wrong length of match from url: %s", projectURL)
+	}
+
+	if len(a[0]) != 2 {
+		return "", fmt.Errorf("wrong length of submatch from url: %s", projectURL)
+	}
+	return a[0][1], nil
+}
+
+func waitForContainerZoneOp(client *container.ProjectsZonesService, op *container.Operation) error {
+	project, err := getProject(op.SelfLink)
+	if err != nil {
+		return err
+	}
+
+	return waitForContainerOp(op, func(operationName string) (*container.Operation, error) {
+		return client.Operations.Get(project, op.Zone, op.Name).Do()
+	})
 }
 
 func waitForZoneOp(client *compute.Service, op *compute.Operation) error {
@@ -84,8 +122,70 @@ func waitForGlobalOp(client *compute.Service, op *compute.Operation) error {
 	})
 }
 
+func opContainerIsDone(op *container.Operation) bool {
+	return op != nil && op.Status == "DONE"
+}
 func opIsDone(op *compute.Operation) bool {
 	return op != nil && op.Status == "DONE"
+}
+
+// TODO reface waitForContainerOp to accept either an interface or functions
+// we have dupicate code
+
+func waitForContainerOp(op *container.Operation, getOperation func(operationName string) (*container.Operation, error)) error {
+	if op == nil {
+		return fmt.Errorf("operation must not be nil")
+	}
+
+	if opContainerIsDone(op) {
+		return getErrorFromContainerOp(op)
+	}
+
+	opStart := time.Now()
+	opName := op.Name
+	return wait.Poll(operationPollInterval, operationPollTimeoutDuration, func() (bool, error) {
+		start := time.Now()
+		//gce.operationPollRateLimiter.Accept()
+		duration := time.Now().Sub(start)
+		if duration > 5*time.Second {
+			glog.Infof("pollOperation: throttled %v for %v", duration, opName)
+		}
+		pollOp, err := getOperation(opName)
+		if err != nil {
+			glog.Warningf("GCE poll operation %s failed: pollOp: [%v] err: [%v] getErrorFromOp: [%v]", opName, pollOp, err, getErrorFromContainerOp(pollOp))
+		}
+		done := opContainerIsDone(pollOp)
+		if done {
+			duration := time.Now().Sub(opStart)
+			if duration > 1*time.Minute {
+				// Log the JSON. It's cleaner than the %v structure.
+				enc, err := pollOp.MarshalJSON()
+				if err != nil {
+					glog.Warningf("waitForOperation: long operation (%v): %v (failed to encode to JSON: %v)", duration, pollOp, err)
+				} else {
+					glog.Infof("waitForOperation: long operation (%v): %v", duration, string(enc))
+				}
+			}
+		}
+		return done, getErrorFromContainerOp(pollOp)
+	})
+}
+
+func getErrorFromContainerOp(op *container.Operation) error {
+
+	// FIXME how do we know if this has failed?  We do not have an error object here
+
+	if op != nil && op.HTTPStatusCode != 200 {
+		err := &googleapi.Error{
+			Code:   op.HTTPStatusCode,
+			Header: op.Header,
+			Body:   op.StatusMessage,
+		}
+		glog.Errorf("GKE  container operation failed: %v", err)
+		return err
+	}
+
+	return nil
 }
 
 func waitForOp(op *compute.Operation, getOperation func(operationName string) (*compute.Operation, error)) error {

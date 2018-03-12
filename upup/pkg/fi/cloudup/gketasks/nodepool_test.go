@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2017 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,34 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gke
+package gketasks
 
 import (
+	"strings"
 	"testing"
 
 	"k8s.io/kops/upup/pkg/fi"
 )
 
-func TestGKEApi(t *testing.T) {
-	/*
-		project, err := gcp.DefaultProject()
-		if err != nil {
-			t.Errorf("error: %v", err)
-		}*/
+func Test_CreateNodePool(t *testing.T) {
+	t.Skip("needs to be mocked out")
 
-	var cloud fi.Cloud
-	cloud, err := NewGKECloud("us-central", "foo", nil)
+	clusterName, target := createGKECluster(t)
+
+	nodePool := &NodePool{
+		Name:           fi.String(strings.ToLower(RandStringBytesMaskImprSrc(8))),
+		BootDiskSizeGB: fi.Int64(42),
+		MachineType:    fi.String("n1-standard-1"),
+		InitialCount:   fi.Int64(1),
+		Cluster:        &GKECluster{Name: fi.String(clusterName)},
+	}
+
+	err := nodePool.RenderGKE(target, nil, nodePool, nil)
 	if err != nil {
-		t.Errorf("error: %v", err)
+		t.Fatalf("error creating nodepool: %v", err)
 	}
 
-	if cloud == nil {
-		t.Errorf("error: %v", err)
-	}
-
-	target := NewGKEAPITarget(cloud.(GKECloud))
-
-	if target == nil {
-		t.Errorf("error: %v", err)
-	}
 }

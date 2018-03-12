@@ -39,12 +39,12 @@ import (
 type GKECloud interface {
 	fi.Cloud
 	Compute() *compute.Service
-	Container() *container.Service
+	Container() *container.ProjectsZonesService
 	IAM() *iam.Service
 
 	Region() string
 	Project() string
-	WaitForOp(op *compute.Operation) error
+	WaitForOp(op *container.Operation) error
 	Labels() map[string]string
 
 	// FindClusterStatus gets the status of the cluster as it exists in GCE, inferred from volumes
@@ -99,6 +99,7 @@ func NewGKECloud(region string, project string, labels map[string]string) (GKECl
 	if err != nil {
 		return nil, fmt.Errorf("error building google API client: %v", err)
 	}
+
 	computeService, err := compute.New(client)
 	if err != nil {
 		return nil, fmt.Errorf("error building compute API client: %v", err)
@@ -159,8 +160,8 @@ func (c *gkeCloudImplementation) Compute() *compute.Service {
 }
 
 // Container returns private struct element compute.
-func (c *gkeCloudImplementation) Container() *container.Service {
-	return c.container
+func (c *gkeCloudImplementation) Container() *container.ProjectsZonesService {
+	return container.NewProjectsZonesService(c.container)
 }
 
 // IAM returns the IAM client
@@ -249,8 +250,8 @@ func (c *gkeCloudImplementation) Zones() ([]string, error) {
 	return zones, nil
 }
 
-func (c *gkeCloudImplementation) WaitForOp(op *compute.Operation) error {
-	return gcp.WaitForOp(c.compute, op)
+func (c *gkeCloudImplementation) WaitForOp(op *container.Operation) error {
+	return gcp.WaitForContainerOp(c.Container(), op)
 }
 
 // logTokenInfo returns information about the active credential

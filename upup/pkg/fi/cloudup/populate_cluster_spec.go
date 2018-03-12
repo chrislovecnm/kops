@@ -25,6 +25,7 @@ import (
 
 	"github.com/golang/glog"
 
+	"k8s.io/kops/pkg/apis/kops"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/util"
 	"k8s.io/kops/pkg/apis/kops/validation"
@@ -302,16 +303,18 @@ func (c *populateClusterSpec) run(clientset simple.Clientset) error {
 		case "config":
 			// Note: DefaultOptionsBuilder comes first
 			codeModels = append(codeModels, &components.DefaultsOptionsBuilder{Context: optionsContext})
-			codeModels = append(codeModels, &components.EtcdOptionsBuilder{Context: optionsContext})
-			codeModels = append(codeModels, &components.KubeAPIServerOptionsBuilder{OptionsContext: optionsContext})
-			codeModels = append(codeModels, &components.DockerOptionsBuilder{Context: optionsContext})
-			codeModels = append(codeModels, &components.NetworkingOptionsBuilder{Context: optionsContext})
-			codeModels = append(codeModels, &components.KubeDnsOptionsBuilder{Context: optionsContext})
-			codeModels = append(codeModels, &components.KubeletOptionsBuilder{Context: optionsContext})
-			codeModels = append(codeModels, &components.KubeControllerManagerOptionsBuilder{Context: optionsContext})
-			codeModels = append(codeModels, &components.KubeSchedulerOptionsBuilder{OptionsContext: optionsContext})
-			codeModels = append(codeModels, &components.KubeProxyOptionsBuilder{Context: optionsContext})
-			fileModels = append(fileModels, m)
+			if kops.CloudProviderID(cluster.Spec.CloudProvider) != kops.CloudProviderGKE {
+				codeModels = append(codeModels, &components.EtcdOptionsBuilder{Context: optionsContext})
+				codeModels = append(codeModels, &components.KubeAPIServerOptionsBuilder{OptionsContext: optionsContext})
+				codeModels = append(codeModels, &components.DockerOptionsBuilder{Context: optionsContext})
+				codeModels = append(codeModels, &components.NetworkingOptionsBuilder{Context: optionsContext})
+				codeModels = append(codeModels, &components.KubeDnsOptionsBuilder{Context: optionsContext})
+				codeModels = append(codeModels, &components.KubeletOptionsBuilder{Context: optionsContext})
+				codeModels = append(codeModels, &components.KubeControllerManagerOptionsBuilder{Context: optionsContext})
+				codeModels = append(codeModels, &components.KubeSchedulerOptionsBuilder{OptionsContext: optionsContext})
+				codeModels = append(codeModels, &components.KubeProxyOptionsBuilder{Context: optionsContext})
+				fileModels = append(fileModels, m)
+			}
 
 		default:
 			fileModels = append(fileModels, m)

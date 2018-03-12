@@ -14,28 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gke
+package gcp
 
-import (
-	"k8s.io/kops/upup/pkg/fi"
-)
+import "testing"
 
-type GKEAPITarget struct {
-	Cloud GKECloud
-}
+func Test_Get_Project(t *testing.T) {
 
-var _ fi.Target = &GKEAPITarget{}
+	projectURL := "https://container.googleapis.com/v1/projects/510657513523/zones/us-central1-a/operations/operation-1520960668616-b3fcea02"
+	project, err := getProject(projectURL)
 
-func NewGKEAPITarget(cloud GKECloud) *GKEAPITarget {
-	return &GKEAPITarget{
-		Cloud: cloud,
+	if err != nil {
+		t.Fatalf("error parsing: %v", err)
 	}
-}
 
-func (t *GKEAPITarget) Finish(taskMap map[string]fi.Task) error {
-	return nil
-}
+	if project != "510657513523" {
+		t.Fatalf("wrong project name found, expected 510657513523 found: %s", project)
+	}
 
-func (t *GKEAPITarget) ProcessDeletions() bool {
-	return true
 }

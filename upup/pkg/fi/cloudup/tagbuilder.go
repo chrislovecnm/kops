@@ -57,6 +57,10 @@ func buildCloudupTags(cluster *api.Cluster) (sets.String, error) {
 	}
 
 	switch api.CloudProviderID(cluster.Spec.CloudProvider) {
+	case api.CloudProviderGKE:
+		{
+			tags.Insert("_gke")
+		}
 	case api.CloudProviderGCE:
 		{
 			tags.Insert("_gce")
@@ -81,7 +85,7 @@ func buildCloudupTags(cluster *api.Cluster) (sets.String, error) {
 	case api.CloudProviderOpenstack:
 
 	default:
-		return nil, fmt.Errorf("unknown CloudProvider %q", cluster.Spec.CloudProvider)
+		return nil, fmt.Errorf("tags unknown CloudProvider %q", cluster.Spec.CloudProvider)
 	}
 
 	versionTag := ""

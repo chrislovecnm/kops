@@ -53,14 +53,18 @@ func (u *GoogleCloudURL) BuildURL() string {
 	return url
 }
 
+// 	https://container.googleapis.com/v1/projects/510657513523/zones/us-central1-a/operations/operation-1520960668616-b3fcea02": invalid google cloud URL (schema / host): "https://container.googleapis.com/v1/projects/510657513523/zones/us-central1-a/operations/operation-1520960668616-b3fcea02"
+
 func ParseGoogleCloudURL(u string) (*GoogleCloudURL, error) {
 	tokens := strings.Split(u, "/")
 	if len(tokens) < 3 {
 		return nil, fmt.Errorf("invalid google cloud URL (token count): %q", u)
 	}
 
-	if tokens[0] != "https:" || tokens[1] != "" || tokens[2] != "www.googleapis.com" {
-		return nil, fmt.Errorf("invalid google cloud URL (schema / host): %q", u)
+	if tokens[0] != "https:" || tokens[1] != "" {
+		if tokens[2] != "www.googleapis.com" || tokens[2] != "container.googleapis.com" {
+			return nil, fmt.Errorf("invalid google cloud URL (schema / host): %q", u)
+		}
 	}
 
 	if len(tokens) < 5 || tokens[3] != "compute" {

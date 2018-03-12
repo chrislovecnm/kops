@@ -1,0 +1,43 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "gke_cluster.go",
+        "gkecluster_fitask.go",
+        "node_pool.go",
+        "nodepool_fitask.go",
+        "storagebucketacl.go",
+        "storagebucketacl_fitask.go",
+        "storagebucketiam.go",
+        "storagebucketiam_fitask.go",
+        "storageobjectacl.go",
+        "storageobjectacl_fitask.go",
+    ],
+    importpath = "k8s.io/kops/upup/pkg/fi/cloudup/gketasks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//upup/pkg/fi:go_default_library",
+        "//upup/pkg/fi/cloudup/gce:go_default_library",
+        "//upup/pkg/fi/cloudup/gcp:go_default_library",
+        "//upup/pkg/fi/cloudup/gke:go_default_library",
+        "//upup/pkg/fi/cloudup/terraform:go_default_library",
+        "//vendor/github.com/golang/glog:go_default_library",
+        "//vendor/google.golang.org/api/container/v1:go_default_library",
+        "//vendor/google.golang.org/api/storage/v1:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "gke_cluster_test.go",
+        "nodepool_test.go",
+    ],
+    embed = [":go_default_library"],
+    deps = [
+        "//upup/pkg/fi:go_default_library",
+        "//upup/pkg/fi/cloudup/gcp:go_default_library",
+        "//upup/pkg/fi/cloudup/gke:go_default_library",
+    ],
+)

@@ -30,6 +30,7 @@ import (
 	"k8s.io/kops/upup/pkg/fi/cloudup/do"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gcp"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gke"
 	"k8s.io/kops/upup/pkg/fi/cloudup/openstack"
 	"k8s.io/kops/upup/pkg/fi/cloudup/vsphere"
 )
@@ -65,6 +66,32 @@ func BuildCloud(cluster *kops.Cluster) (fi.Cloud, error) {
 			}
 
 			cloud = gceCloud
+		}
+	case kops.CloudProviderGKE:
+		{
+			for _, subnet := range cluster.Spec.Subnets {
+				if subnet.Region != "" {
+					region = subnet.Region
+				}
+			}
+			if region == "" {
+				return nil, fmt.Errorf("on GKE, subnets must include Regions")
+			}
+
+			project = cluster.Spec.Project
+			if project == "" {
+				return nil, fmt.Errorf("project is required for GKE - try gcloud config get-value project")
+			}
+
+			// TODO remove, we do not use
+			labels := map[string]string{gce.GceLabelNameKubernetesCluster: gcp.SafeClusterName(cluster.ObjectMeta.Name)}
+
+			gkeCloud, err := gke.NewGKECloud(region, project, labels)
+			if err != nil {
+				return nil, err
+			}
+
+			cloud = gkeCloud
 		}
 
 	case kops.CloudProviderAWS:
@@ -143,7 +170,7 @@ func BuildCloud(cluster *kops.Cluster) (fi.Cloud, error) {
 		}
 
 	default:
-		return nil, fmt.Errorf("unknown CloudProvider %q", cluster.Spec.CloudProvider)
+		return nil, fmt.Errorf("utils unknown CloudProvider %q", cluster.Spec.CloudProvider)
 	}
 	return cloud, nil
 }

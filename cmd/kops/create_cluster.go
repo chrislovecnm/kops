@@ -483,10 +483,12 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 		}
 	}
 
+	cloudProvider := api.CloudProviderID(cluster.Spec.CloudProvider)
 	zoneToSubnetMap := make(map[string]*api.ClusterSubnetSpec)
 	if len(c.Zones) == 0 {
 		return fmt.Errorf("must specify at least one zone for the cluster (use --zones)")
-	} else if api.CloudProviderID(cluster.Spec.CloudProvider) == api.CloudProviderGCE {
+	} else if cloudProvider == api.CloudProviderGCE || cloudProvider == api.CloudProviderGKE {
+		// TODO this needs to be tweaked for GKE - we need the Zone name, and all Zones
 		// On GCE, subnets are regional - we create one per region, not per zone
 		for _, zoneName := range allZones.List() {
 			region, err := gcp.ZoneToRegion(zoneName)
@@ -572,7 +574,7 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 	// The master zones is the default set of zones unless explicitly set
 	// The master count is the number of master zones unless explicitly set
 	// We then round-robin around the zones
-	if len(masters) == 0 {
+	if len(masters) == 0 && cloudProvider != api.CloudProviderGKE {
 		masterCount := c.MasterCount
 		masterZones := c.MasterZones
 		if len(masterZones) != 0 {
@@ -627,7 +629,7 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 		}
 	}
 
-	if len(cluster.Spec.EtcdClusters) == 0 {
+	if len(cluster.Spec.EtcdClusters) == 0 && cloudProvider != api.CloudProviderGKE {
 		masterAZs := sets.NewString()
 		duplicateAZs := false
 		for _, ig := range masters {
@@ -812,7 +814,7 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 	if c.Project != "" {
 		cluster.Spec.Project = c.Project
 	}
-	if api.CloudProviderID(cluster.Spec.CloudProvider) == api.CloudProviderGCE {
+	if cloudProvider == api.CloudProviderGCE || cloudProvider == api.CloudProviderGKE {
 		if cluster.Spec.Project == "" {
 			project, err := gcp.DefaultProject()
 			if err != nil {
@@ -872,6 +874,11 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 		cluster.Spec.Networking.AmazonVPC = &api.AmazonVPCNetworkingSpec{}
 	default:
 		return fmt.Errorf("unknown networking mode %q", c.Networking)
+	}
+
+	if cloudProvider == api.CloudProviderGKE {
+		cluster.Spec.Networking = &api.NetworkingSpec{}
+		cluster.Spec.Networking.Kubenet = &api.KubenetNetworkingSpec{}
 	}
 
 	glog.V(4).Infof("networking mode=%s => %s", c.Networking, fi.DebugAsJsonString(cluster.Spec.Networking))
@@ -1045,11 +1052,11 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 
 	err = cloudup.PerformAssignments(cluster)
 	if err != nil {
-		return fmt.Errorf("error populating configuration: %v", err)
+		return fmt.Errorf("error populating cloudup configuration: %v", err)
 	}
 	err = api.PerformAssignmentsInstanceGroups(instanceGroups)
 	if err != nil {
-		return fmt.Errorf("error populating configuration: %v", err)
+		return fmt.Errorf("error populating instance group configuration: %v", err)
 	}
 
 	strict := false

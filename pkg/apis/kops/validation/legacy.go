@@ -105,7 +105,10 @@ func ValidateCluster(c *kops.Cluster, strict bool) *field.Error {
 	case kops.CloudProviderOpenstack:
 		requiresNetworkCIDR = false
 		requiresSubnetCIDR = false
-
+	case kops.CloudProviderGKE:
+		requiresNetworkCIDR = false
+		requiresSubnetCIDR = false
+		strict = false
 	default:
 		return field.Invalid(fieldSpec.Child("CloudProvider"), c.Spec.CloudProvider, "CloudProvider not recognized")
 	}
@@ -300,6 +303,8 @@ func ValidateCluster(c *kops.Cluster, strict bool) *field.Error {
 			k8sCloudProvider = ""
 		case kops.CloudProviderOpenstack:
 			k8sCloudProvider = "openstack"
+		case kops.CloudProviderGKE:
+			k8sCloudProvider = "gke"
 		default:
 			return field.Invalid(fieldSpec.Child("CloudProvider"), c.Spec.CloudProvider, "unknown cloudprovider")
 		}
@@ -459,7 +464,7 @@ func ValidateCluster(c *kops.Cluster, strict bool) *field.Error {
 	}
 
 	// Etcd
-	{
+	if kops.CloudProviderID(c.Spec.CloudProvider) != kops.CloudProviderGKE {
 		fieldEtcdClusters := fieldSpec.Child("EtcdClusters")
 
 		if len(c.Spec.EtcdClusters) == 0 {
@@ -626,7 +631,7 @@ func DeepValidate(c *kops.Cluster, groups []*kops.InstanceGroup, strict bool) er
 		}
 	}
 
-	if masterGroupCount == 0 {
+	if masterGroupCount == 0 && kops.CloudProviderID(c.Spec.CloudProvider) != kops.CloudProviderGKE {
 		return fmt.Errorf("must configure at least one Master InstanceGroup")
 	}
 
