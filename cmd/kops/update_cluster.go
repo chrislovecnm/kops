@@ -273,7 +273,11 @@ func RunUpdateCluster(f *util.Factory, clusterName string, out io.Writer, c *Upd
 
 	firstRun := false
 
-	if !isDryrun && c.CreateKubecfg {
+	if kops.CloudProviderID(cluster.Spec.CloudProvider) == kops.CloudProviderGKE {
+		glog.Infof("FIXME export of kubecfg")
+	}
+
+	if !isDryrun && c.CreateKubecfg && kops.CloudProviderID(cluster.Spec.CloudProvider) != kops.CloudProviderGKE {
 		hasKubecfg, err := hasKubecfg(cluster.ObjectMeta.Name)
 		if err != nil {
 			glog.Warningf("error reading kubecfg: %v", err)
@@ -289,6 +293,7 @@ func RunUpdateCluster(f *util.Factory, clusterName string, out io.Writer, c *Upd
 		}
 		if kubecfgCert != nil {
 			glog.Infof("Exporting kubecfg for cluster")
+
 			conf, err := kubeconfig.BuildKubecfg(cluster, keyStore, secretStore, &commands.CloudDiscoveryStatusStore{})
 			if err != nil {
 				return nil, err

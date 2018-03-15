@@ -512,6 +512,9 @@ func (c *ApplyClusterCmd) Run() error {
 					templates:    templates,
 					assetBuilder: assetBuilder,
 				},
+				// TODO - We do not need this builder with GKE, but when I move it into the cloud provider switch below
+				// TODO - I am getting an err that the certs are not being created.
+				// TODO - that the task is missing.  How the heck do I move it?
 				&model.PKIModelBuilder{KopsModelContext: modelContext, Lifecycle: &clusterLifecycle},
 			)
 
