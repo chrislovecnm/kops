@@ -280,3 +280,33 @@ func (c *gkeCloudImplementation) getTokenInfo(client *http.Client) (*oauth2.Toke
 
 	return tokenInfo, nil
 }
+
+func FindGKECluster(cloud GKECloud, clusterName string, region string) (*container.Cluster, error) {
+	c := gcp.SafeClusterName(clusterName)
+	resp, err := cloud.Container().Clusters.Get(cloud.Project(), region, c).Do()
+	if err != nil {
+		if gcp.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("error getting gke cluster: %v", err)
+	}
+
+	return resp, nil
+}
+
+func DeleteGKECluster(cloud GKECloud, clusterName string, region string) error {
+	c := gcp.SafeClusterName(clusterName)
+	op, err := cloud.Container().Clusters.Delete(cloud.Project(), region, c).Do()
+	if err != nil {
+		if gcp.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("error deleting %q gke cluster: %v", clusterName, err)
+	}
+
+	if err := gcp.WaitForContainerOp(cloud.Container(), op); err != nil {
+		return fmt.Errorf("error deleting %q gke cluster:  %v", clusterName, err)
+	}
+
+	return nil
+}
