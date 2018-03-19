@@ -390,3 +390,6 @@ required = [
 [[override]]
   name = "github.com/weaveworks/mesh"
   revision = "1f158d31de55abf9f97bbaa0a260e2b8023a3785"
+[[override]]
+  name = "github.com/client9/misspell"
+  revision = "b90dc15cfd220ecf8bbc9043ecb928cef381f011"
